@@ -241,6 +241,12 @@ class ImageConverter
 		return ss.str();
 	}
 	
+	double GetZValue(int u, int v)
+	{
+		double z = 0;
+		
+		return z;
+	}
 
 	///////////////////////////////////////////////////////////
 	// The image call back function
@@ -473,29 +479,38 @@ class ImageConverter
 		createTrackbar("Upper Line", "Cropped image", &bund, img_cropped.rows);
 
 		//drawContours(fun_test_img, contours, -1, CV_RGB(255, 255, 255), 2, 8);
-
-    
-		// Output modified video stream - No need to publish the image out on ROS
-		// What we need to publish the transformation matrix, which include the
-		// rotation and translation of each brick. 
-		//image_pub_.publish(cv_ptr->toImageMsg());
 		
-		// Now I want to publish just the u and v. 
-
+		// Now I want to publish just the u and v.
+		//cout << "Cener_red is: " << center_red[0] << endl;
+		
+		// Now we just find one of the red bricks.
+		// center_red[i] = [[u0,v0], [u1,v1], ... , [un,vn]] 
 		double u = center_red[0].x;
 		double v = center_red[0].y;
 		double roll, pitch, yaw;
-		
 		double fx = 1194.773485;
 		double fy = 1192.665666;
 		
+		// Set roll, pitch and yaw
+		// roll - orientation around x axis
+		// The x,y,z coordinate is bounded with z pointing upward from the conveyorbelt
+		// and x is in the belt running forward direction.
+		roll = 0.0;
+		
+		// Pitch is the inclination of the conveyor belt. Units is converted to radians
+		pitch = 17.03;
+		pitch = pitch*(M_PI/180);
+		
+		// The yaw is the orientation around z-axis
+		yaw = angle_red[0];
+		
 		// Set the orientation
-		//q.setRPY(, 0, 0);
+		q.setRPY(roll, pitch, yaw);
 		
 		// Apply the pin hole model
 		double x;
 		double y;
-		double z = 0.030; //
+		double z = 0.030; // 30 cm meassured from camera to middle of conveyor belt
 		
 		x = (u - img_cropped.cols/2)*z/fx;
 		y = (v - img_cropped.rows/2)*z/fy;
