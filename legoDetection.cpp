@@ -61,7 +61,7 @@ int value_min_blue = 0;
 int value_max_blue = 255;
 
 // Morphology trackbars
-int erode_iterations_red = 3;    // Tre erosioner for at sikre at alt gult er væk
+int erode_iterations_red = 0;    // 1 erosioner for at sikre at alt gult er væk
 int dilate_iterations_red = 3;   // Tre dilates efter eriosion for at sikre få samme area igen til de røde klodsser
 int erode_iterations_yellow = 3;
 int dilate_iterations_yellow = 3;
@@ -69,6 +69,8 @@ int erode_iterations_blue = 3;
 int dilate_iterations_blue = 3;
 
 double publish_frequency = 2;
+vector<Point2d> alreadySend;
+
 ///////////////////////////////////////////////////////////
 // Class...
 ///////////////////////////////////////////////////////////
@@ -88,6 +90,7 @@ class ImageConverter
 		image_sub_ = it_.subscribe("/camera/image_raw", 1, &ImageConverter::imageCb, this);
 		image_pub_ = it_.advertise("/legoDetection/output_video", 1);
 		cv::namedWindow(OPENCV_WINDOW);
+		
 	}
 
 	~ImageConverter()
@@ -164,6 +167,7 @@ class ImageConverter
 		Point2d tempCenter;
 		double tempAngle;
 		double tempArea;
+        bool alreadySendBool;
 		for (uint i = 0; i < contours.size(); i++) // each img
 		{
 			// Now we ignore if two same colored LEGO bricks is touching each other
@@ -197,33 +201,68 @@ class ImageConverter
 				tempAngle = tempAngle + 0.5*M_PI*(180/M_PI);
 			}
 
-			/*
-			if ( (floor(minRect[i].size.height + 0.5)) < (floor(minRect[i].size.width + 0.5)) )
-			{
-				tempAngle = tempAngle + 180;
-				//cout << "MinRect[0] height is: " << minRect[0].size.height << endl;
-				//cout << "MinRect[0] width is: " << minRect[0].size.width << endl;
-			}
-			else
-			{
-				tempAngle = tempAngle + 90;
-				//cout << "MinRect[0] height is: " << minRect[0].size.height << endl;
-				//cout << "MinRect[0] width is: " << minRect[0].size.width << endl;
-			}
-			
-			//*/
-
 			if ( degrees == false )
 			{
 				tempAngle = tempAngle * (M_PI/180);
 			}
 
-			if ((tempCenter.y > lowerLine) and (tempCenter.y < upperLine))
-			{
-				center.push_back(tempCenter);
-				angle.push_back(tempAngle);
-				area.push_back(tempArea);
-			}
+            alreadySendBool = false;
+            for (uint j = 0; j < alreadySend.size(); j++)
+            {
+                cout << "TempCenter is: " << tempCenter << endl;
+                if ((tempCenter.x <= alreadySend[j].x + 1) && (tempCenter.x >= alreadySend[j].x - 1) && (tempCenter.y <= alreadySend[j].y + 1) && (tempCenter.y >= alreadySend[j].y - 1) )
+                {
+                    cout << "TempCenter is the same" << endl;
+                    alreadySendBool = true;
+                    break;
+                }
+            }
+
+            if (alreadySendBool == false)
+            {
+                if ((tempCenter.y > lowerLine) and (tempCenter.y < upperLine))
+                {
+                    center.push_back(tempCenter);
+                    angle.push_back(tempAngle);
+                    area.push_back(tempArea);
+                }
+            }
+
+            /*
+
+            if (alreadySend.empty() == true)
+            {
+                cout << "alreadySend vector is empty" << endl;
+                if ((tempCenter.y > lowerLine) and (tempCenter.y < upperLine))
+                {
+                    center.push_back(tempCenter);
+                    angle.push_back(tempAngle);
+                    area.push_back(tempArea);
+                }
+            }
+            else
+            {
+                cout << "alreadySend vector is not empty" << endl;
+                for (uint j = 0; j < alreadySend.size(); j++)
+                {
+                    if (tempCenter != alreadySend[j])
+                    {
+                        cout << "coordinate is not in already send, so we append" << endl;
+
+                        if ((tempCenter.y > lowerLine) and (tempCenter.y < upperLine))
+                        {
+                            center.push_back(tempCenter);
+                            angle.push_back(tempAngle);
+                            area.push_back(tempArea);
+                        }
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+            */
 		}
 	}
 	
@@ -247,6 +286,72 @@ class ImageConverter
 		
 		return z;
 	}
+
+    vector<double> GetXY(int u, int v, double z, double fx, double fy, int imageCol, int imageRow)
+    {
+        // Initialize variables
+        double x = 0;
+        double y = 0;
+        vector<double> x_and_y;
+
+        // With the input argument, it is possible to use the pin hole model as followed
+        // for x and y
+        x = double((u - imageCol/2))*z/fx;
+        y = double((v - imageRow/2))*z/fy;
+
+        // Push back the values into the output vector
+        x_and_y.push_back(x);
+        x_and_y.push_back(y);
+
+        // And return the output vector
+        return x_and_y;
+    }
+
+//    double u = center_yellow[0].x;
+//    double v = center_yellow[0].y;
+//    double roll, pitch, yaw;
+//    double fx = 1194.773485;
+//    double fy = 1192.665666;
+
+//    // Set roll, pitch and yaw
+//    // roll - orientation around x axis
+//    // The x,y,z coordinate is bounded with z pointing upward from the conveyorbelt
+//    // and x is in the belt running forward direction.
+//    roll = 0.0;
+
+//    // Pitch is the inclination of the conveyor belt. Units is converted to radians
+//    pitch = 17.03;
+//    pitch = pitch*(M_PI/180);
+
+//    // The yaw is the orientation around z-axis
+//    yaw = angle_yellow[0];
+
+//    // Set the orientation
+
+
+//    q.setRPY(roll, pitch, yaw);
+
+//    // Apply the pin hole model
+//    double x;
+//    double y;
+//    double z = 0.030; // 30 cm meassured from camera to middle of conveyor belt
+
+//    x = (u - img_cropped.cols/2)*z/fx;
+//    y = (v - img_cropped.rows/2)*z/fy;
+//    //cout << "x is: " << x << " and y is: " << y << endl;
+
+//    pose.orientation.x = q.getX();
+//    pose.orientation.y = q.getY();
+//    pose.orientation.z = q.getZ();
+//    pose.orientation.w = q.getW();
+
+//    pose.position.x = x;
+//    pose.position.y = y;
+//    pose.position.z = z;
+
+//    p_pub.publish(pose);
+
+
 
 	///////////////////////////////////////////////////////////
 	// The image call back function
@@ -274,9 +379,10 @@ class ImageConverter
 		// Store the image from the webcam into inputImage
 		Mat inputImage;
 		inputImage = cv_ptr->image;
-		
+
 		// Resize scale
-		int resizeScale = 2;
+        int resizeScale = 2;
+		
 		// Resize the image
 		Size size(inputImage.cols/resizeScale,inputImage.rows/resizeScale);//the dst image size,e.g.100x100
 		resize(inputImage,inputImage,size);//resize image
@@ -301,7 +407,7 @@ class ImageConverter
 		CreateTrackBarRed();
 		CreateTrackBarYellow();
 		CreateTrackBarBlue();
-		
+
 		//Convert to binary image using thresholding with colorsegmentation
 		Mat img_red;
 		inRange(hsvImage, 
@@ -374,7 +480,13 @@ class ImageConverter
 		vector< vector <Point> > contours_red;
 		vector< vector <Point> > contours_yellow;
 		vector< vector <Point> > contours_blue;
-		
+
+//        if(alreadySend.empty())
+//        {
+//            alreadySend.push_back(Point2d(542, 103));
+//            cout << "alreadySend size is: " << alreadySend.size() << endl;
+//        }
+
 		findContours(morph_red, contours_red, CV_RETR_LIST, CV_CHAIN_APPROX_NONE);
 		findContours(morph_yellow, contours_yellow, CV_RETR_LIST, CV_CHAIN_APPROX_NONE);
 		findContours(morph_blue, contours_blue, CV_RETR_LIST, CV_CHAIN_APPROX_NONE);
@@ -415,15 +527,19 @@ class ImageConverter
 		//findCenterAndAngle(contours_red, center_red, angle_red, true, 1500, 4000, leftLowerPoint.y, leftUpperPoint.y);
 		//findCenterAndAngle(contours_yellow, center_yellow, angle_yellow, true, 2500, 5000, leftLowerPoint.y, leftUpperPoint.y);
 		//findCenterAndAngle(contours_blue, center_blue, angle_blue, true, 800, 2000, leftLowerPoint.y, leftUpperPoint.y);
-						
+		
+		//cout << "Here we got..." << endl;
+        int brickRed = 0;
+        int brickYellow = 0;
+        int brickBlue = 0;
 		for (int i = 0; i < center_red.size(); ++i)
 		{
 			//cout << "Center red: " << i << " is " << center_red[i] << endl;
 			//cout << "Angle red:  " << i << " is " << angle_red[i] << endl;
 			circle(img_cropped, center_red[i], 5, Scalar(0, 0, 255), -1, 8, 0);
 			circle(img_cropped, center_red[i], 10, Scalar(0, 0, 0), 1, 8, 0);
-			
-			//cout << "Center red coordinate is: " << center_red[i] << endl;
+            brickRed++;
+            //cout << "Center red coordinate is: " << center_red[i] << endl;
 		
 			putText(img_cropped, centerToString("Center : ", center_red[i]), Point(center_red[i].x, center_red[i].y - 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
 			putText(img_cropped, doubleToString("Angle  : ", angle_red[i]), Point(center_red[i].x, center_red[i].y), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
@@ -439,7 +555,8 @@ class ImageConverter
 			//cout << "Angle yellow:  " << i << " is " << angle_yellow[i] << endl;
 			circle(img_cropped, center_yellow[i], 5, Scalar(0, 255, 255), -1, 8, 0);
 			circle(img_cropped, center_yellow[i], 10, Scalar(0, 0, 0), 1, 8, 0);
-			
+            brickYellow++;
+
 			putText(img_cropped, centerToString("Center : ", center_yellow[i]), Point(center_yellow[i].x, center_yellow[i].y - 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
 			putText(img_cropped, doubleToString("Angle  : ", angle_yellow[i]), Point(center_yellow[i].x, center_yellow[i].y), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
 			putText(img_cropped, doubleToString("Area   : ", area_yellow[i]), Point(center_yellow[i].x, center_yellow[i].y + 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);	
@@ -455,41 +572,114 @@ class ImageConverter
 			//cout << "Angle blue:  " << i << " is " << angle_blue[i] << endl;
 			circle(img_cropped, center_blue[i], 5, Scalar(255, 0, 0), -1, 8, 0);
 			circle(img_cropped, center_blue[i], 10, Scalar(0, 0, 0), 1, 8, 0);
-			
+            brickBlue++;
+
 			putText(img_cropped, centerToString("Center : ", center_blue[i]), Point(center_blue[i].x, center_blue[i].y - 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
 			putText(img_cropped, doubleToString("Angle  : ", angle_blue[i]), Point(center_blue[i].x, center_blue[i].y), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
 			putText(img_cropped, doubleToString("Area   : ", area_blue[i]), Point(center_blue[i].x, center_blue[i].y + 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);	
 		}
 		
-		//cout << "-----------------------------------------------------------------" << endl;
-		//cout << "\n" << endl;
-		
-		//
-//		Point pt1, pt2;
-//		pt1.x = 0;
-//		pt1.y = 20;
-//		pt2.x = img_cropped.cols;
-//		pt2.y = 20;
-		
+        // Drawings stuff on the output RGB image
 		line(img_cropped, leftLowerPoint, rightLowerPoint, Scalar(0, 255, 0), 2, 8, 0);
 		line(img_cropped, leftUpperPoint, rightUpperPoint, Scalar(0, 255, 0), 2, 8, 0);
+        Point center;
+        center.x = img_cropped.cols/2;
+        center.y = img_cropped.rows/2;
+        circle(img_cropped, center, 5, Scalar(255, 255, 255), -1, 8, 0);
+
 		imshow("Cropped image", img_cropped);
 		
 		createTrackbar("Lower Line", "Cropped image", &top, img_cropped.rows);
 		createTrackbar("Upper Line", "Cropped image", &bund, img_cropped.rows);
 
-		//drawContours(fun_test_img, contours, -1, CV_RGB(255, 255, 255), 2, 8);
+
+        // Here each image has gone trough the following:
+            // Yellow, Blue and Red mask has been investigated and seen how many center coordinates sets there is in each color mask image.
+            //
+
+        // If there is no brick in the cameras field of view, we just wait...
+        if((brickRed == 0) && (brickYellow == 0) && (brickBlue == 0))
+        {
+            cout << "There is no brick in the cameras field of view" << endl;
+        }
+
+        // Else there must be some bricks in the camreas field of view, and we have to check if each of the LEGO bricks poses has been
+        // sendt to the topic.
+        else
+        {
+            vector<double> test;
+
+            // Draw the centerpoint in the image
+
+
+
+            double z = 0.30;                     // Rough estimate of the depth, approx 30 cm. Should be remeassured in final implementation.
+            double fx = 1194.773485/resizeScale; // Info extracted from /camera/camera_info topic with ROS. Use rostopic echo /camera/camera_info
+            double fy = 1192.665666/resizeScale; // Info extracted from /camera/camera_info topic with ROS. Use rostopic echo /camera/camera_info
+            if (brickRed > 0)
+            {
+                cout << "There is a red brick inside the field" << endl;
+                // Call the x,y,z convertion function for the each red brick.
+                cout << "The number of red bricks is: " << center_red.size() << endl;
+
+                // Use the u and v to transform over to x and y.
+                // The z value is depended on how the x and y value is.
+                // The roll also depends on how the x and y value is
+                // The pitch is the incline of the conveyore belt
+                // The yaw is the orientation, which Michael has calculated by minRectArea.
+                test = GetXY(center_red[0].x, center_red[0].y, z, fx, fy, img_cropped.cols, img_cropped.rows);
+                cout << "The first brick is at: (" << 100*test.at(0) << "," << 100*test.at(1) <<") cm" << endl;
+
+                test = GetXY(center_red[1].x, center_red[1].y, z, fx, fy, img_cropped.cols, img_cropped.rows);
+                cout << "The secound brick is at: (" << 100*test.at(0) << "," << 100*test.at(1) <<") cm" << endl;
+
+
+                test = GetXY(center_red[2].x, center_red[2].y, z, fx, fy, img_cropped.cols, img_cropped.rows);
+                cout << "The third brick is at: (" << 100*test.at(0) << "," << 100*test.at(1) <<") cm" << endl;
+            }
+
+            if (brickYellow > 0)
+            {
+                cout << "There is a yellow brick inside the field" << endl;
+            }
+
+            if (brickBlue > 0)
+            {
+                cout << "There is a blue brick inside the field" << endl;
+            }
+
+
+
+
+            // So we know that there is at leat one centroid coordinate for each color.
+            vector<vector<int> > vi;
+            vi.push_back( vector <int>() );
+
+
+
+            vi.at(0).push_back( 42 );
+            vi.at(0).push_back( 55 );
+
+            cout << "should be 42 " << vi.at(0).at(0) << endl;    // prints 42
+            cout << "should be 55 " << vi.at(0).at(1) << endl;    // prints 55
+
+
+            vi.at(0).at(0) = 232;
+            cout << vi.at(0).at(0) << endl;    // prints 232
+        }
+
+		// NOTE: Remember that if there is no color in the frame and we do 
+		// something like: 
 		
-		// Now I want to publish just the u and v.
-		//cout << "Cener_red is: " << center_red[0] << endl;
+		/*
+		//drawContours(fun_test_img, contours, -1, CV_RGB(255, 255, 255), 2, 8);
 		
 		// Now we just find one of the red bricks.
 		// center_red[i] = [[u0,v0], [u1,v1], ... , [un,vn]] 
-		double u = center_red[0].x;
-		double v = center_red[0].y;
+		double u = center_yellow[0].x;
+		double v = center_yellow[0].y;
 		double roll, pitch, yaw;
-		double fx = 1194.773485;
-		double fy = 1192.665666;
+
 		
 		// Set roll, pitch and yaw
 		// roll - orientation around x axis
@@ -502,9 +692,11 @@ class ImageConverter
 		pitch = pitch*(M_PI/180);
 		
 		// The yaw is the orientation around z-axis
-		yaw = angle_red[0];
+		yaw = angle_yellow[0];
 		
 		// Set the orientation
+		
+
 		q.setRPY(roll, pitch, yaw);
 		
 		// Apply the pin hole model
@@ -526,6 +718,7 @@ class ImageConverter
 		pose.position.z = z;
 				
 		p_pub.publish(pose);
+		*/
 	}
 };
 
