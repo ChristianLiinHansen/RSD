@@ -19,6 +19,7 @@
 using namespace cv;
 using namespace std;
 
+#define xy_hys 10
 ///////////////////////////////////////////////////////////
 // Global variables
 ///////////////////////////////////////////////////////////
@@ -71,6 +72,10 @@ int dilate_iterations_blue = 3;
 double publish_frequency = 2;
 vector<Point2d> alreadySend;
 
+int redBricks = 0;
+int yellowBricks = 0;
+int blueBricks = 0;
+
 ///////////////////////////////////////////////////////////
 // Class...
 ///////////////////////////////////////////////////////////
@@ -97,7 +102,7 @@ class ImageConverter
 	{
 		cv::destroyWindow(OPENCV_WINDOW);
 	}
-	
+
 	///////////////////////////////////////////////////////////
 	// My functions...
 	///////////////////////////////////////////////////////////
@@ -146,12 +151,44 @@ class ImageConverter
 	
 	Mat Opening(Mat image, int erode_iterations, int dilate_iterations)
 	{
+        Mat element = (cv::Mat_<uchar>(3,3) <<      1,1,1,
+                                                    1,1,1,
+                                                    1,1,1);
+
+        Mat element1 = (cv::Mat_<uchar>(3,3) <<     0,1,0,
+                                                    1,1,1,
+                                                    0,1,0);
+
+        Mat element2 = (cv::Mat_<uchar>(3,3) <<     0,1,0,
+                                                    0,1,0,
+                                                    0,1,0);
+
+        Mat element3 = (cv::Mat_<uchar>(3,3) <<     0,0,0,
+                                                    1,1,1,
+                                                    0,0,0);
+
+        Mat element4 = (cv::Mat_<uchar>(3,3) <<     1,0,0,
+                                                    0,1,0,
+                                                    0,0,1);
+
+        Mat element5 = (cv::Mat_<uchar>(3,3) <<     0,0,1,
+                                                    0,1,0,
+                                                    1,0,0);
+
+        Mat element6 = (cv::Mat_<uchar>(3,3) <<     1,0,1,
+                                                    0,1,0,
+                                                    1,0,1);
+
+        Mat element7 = (cv::Mat_<uchar>(2,2) <<     1,1,
+                                                    1,1);
+
+        //cout << "element is: " << "\n" <<element << endl;
 		Mat morph_img;
-		erode(image, morph_img, Mat(), Point(-1,-1), erode_iterations, BORDER_CONSTANT, morphologyDefaultBorderValue());
-		dilate(morph_img, morph_img, Mat(), Point(-1,-1), dilate_iterations, BORDER_CONSTANT, morphologyDefaultBorderValue());		
+        erode(image, morph_img, element, Point(-1,-1), erode_iterations, BORDER_CONSTANT, morphologyDefaultBorderValue());
+        dilate(morph_img, morph_img, element, Point(-1,-1), dilate_iterations, BORDER_CONSTANT, morphologyDefaultBorderValue());
 		return morph_img;
 	}
-	
+
 	Mat Closing(Mat image, int erode_iterations, int dilate_iterations)
 	{
 		Mat morph_img;
@@ -209,10 +246,10 @@ class ImageConverter
             alreadySendBool = false;
             for (uint j = 0; j < alreadySend.size(); j++)
             {
-                cout << "TempCenter is: " << tempCenter << endl;
-                if ((tempCenter.x <= alreadySend[j].x + 1) && (tempCenter.x >= alreadySend[j].x - 1) && (tempCenter.y <= alreadySend[j].y + 1) && (tempCenter.y >= alreadySend[j].y - 1) )
+                //cout << "TempCenter is: " << tempCenter << endl;
+                if ((tempCenter.x <= alreadySend[j].x + xy_hys) && (tempCenter.x >= alreadySend[j].x - xy_hys) && (tempCenter.y <= alreadySend[j].y + xy_hys) && (tempCenter.y >= alreadySend[j].y - xy_hys) )
                 {
-                    cout << "TempCenter is the same" << endl;
+                    //cout << "TempCenter is the same" << endl;
                     alreadySendBool = true;
                     break;
                 }
@@ -287,24 +324,18 @@ class ImageConverter
 		return z;
 	}
 
-    vector<double> GetXY(int u, int v, double z, double fx, double fy, int imageCol, int imageRow)
+    double GetXY(int uv, double z, double fxfy, int imageColRow)
     {
-        // Initialize variables
-        double x = 0;
-        double y = 0;
-        vector<double> x_and_y;
+        // Initialize variables. This could be either x or y output. Depends on the input arguments.
+        // See how the function is called...
 
+        double xy;
         // With the input argument, it is possible to use the pin hole model as followed
         // for x and y
-        x = double((u - imageCol/2))*z/fx;
-        y = double((v - imageRow/2))*z/fy;
+        xy = (uv - imageColRow/2)*z/fxfy;
 
-        // Push back the values into the output vector
-        x_and_y.push_back(x);
-        x_and_y.push_back(y);
-
-        // And return the output vector
-        return x_and_y;
+        // And return the xy
+        return xy;
     }
 
 //    double u = center_yellow[0].x;
@@ -414,21 +445,26 @@ class ImageConverter
 				Scalar(hue_min_red, saturation_min_red, value_min_red), 
 				Scalar(hue_max_red, saturation_max_red, value_max_red),
 				img_red);
+        //imshow("Red segmentation", img_red);
+
 		Mat img_yellow;
 		inRange(hsvImage, 
 				Scalar(hue_min_yellow, saturation_min_yellow, value_min_yellow), 
 				Scalar(hue_max_yellow, saturation_max_yellow, value_max_yellow),
-				img_yellow);
+				img_yellow);    
+       imshow("Yellow segmentation ernice", img_yellow);
+
 		Mat img_blue;
 		inRange(hsvImage, 
 				Scalar(hue_min_blue, saturation_min_blue, value_min_blue), 
 				Scalar(hue_max_blue, saturation_max_blue, value_max_blue),
-				img_blue);
+				img_blue);      
+        //imshow("Blue segmentation", img_blue);
 
 		// Do some morphology - red
 		Mat morph_red;
-		createTrackbar("Erode", "morph_red", &erode_iterations_red, 20);
-		createTrackbar("Dilate", "morph_red", &dilate_iterations_red, 20);
+        createTrackbar("Erode", "morph_red", &erode_iterations_red, 1000);
+        createTrackbar("Dilate", "morph_red", &dilate_iterations_red, 1000);
 		morph_red = Opening(img_red, erode_iterations_red, dilate_iterations_red);
 		
 		// Since it is hard to use only Hue to seperate between red and yellow,
@@ -436,44 +472,50 @@ class ImageConverter
 		// yellow images. 
 		
 		// IMPORTANT! Yellow depends on red!
-		//imshow("morph_red", morph_red);	
-		//imshow("Red segmentation", img_red);
+        //imshow("morph_ired", morph_red);
+        //imshow("Red segmentation", img_red);
 		
 		// Jeg bruger img_yellow - morph_red, da morph_red ikke indeholder segmenter af gul
 		// Hvis jeg brugte img_red i subtraktionen, ville jeg trække gule segmenter fra
 		// og efterlade huller i de gule lego klodser. --> Svære og flere morphologier.
-		img_yellow = img_yellow - morph_red;
+        //img_yellow = img_yellow - morph_red;
 	
 		// Do some morphology - yellow
 		Mat morph_yellow;
-		createTrackbar("Erode", "morph_yellow", &erode_iterations_yellow, 20);
-		createTrackbar("Dilate", "morph_yellow", &dilate_iterations_yellow, 20);
+        createTrackbar("Erode", "morph_yellow", &erode_iterations_yellow, 1000);
+        createTrackbar("Dilate", "morph_yellow", &dilate_iterations_yellow, 1000);
 		morph_yellow = Opening(img_yellow, erode_iterations_yellow, dilate_iterations_yellow);
 		//imshow("morph_yellow", morph_yellow);	
 		//imshow("Yellow segmentation", img_yellow);
 		
 		// Get the negative image from the blue	
 		Mat img_blue_neg;
-		img_blue_neg = 255 - img_blue;
+        img_blue_neg = 255 - img_blue;
 		
 		// And subtract the yellow image from the blue, so the yellow bricks
 		// do not get detected in the blue mask. 
 		
 		// IMPORTANT! Blue depends on yellow, which depends on red! W
-		img_blue_neg = img_blue_neg - img_yellow;
+        img_blue_neg = img_blue_neg - img_yellow;
+
+
+        imshow("img_blue_neg", img_blue_neg);
+        imshow("img_yellow",img_yellow);
+
+        imshow("result", img_blue_neg+img_yellow);
 				
 		// Do some morphology - blue
 		Mat morph_blue;
-		createTrackbar("Erode", "morph_blue", &erode_iterations_blue, 20);
-		createTrackbar("Dilate", "morph_blue", &dilate_iterations_blue, 20);
+        createTrackbar("Erode", "morph_blue", &erode_iterations_blue, 1000);
+        createTrackbar("Dilate", "morph_blue", &dilate_iterations_blue, 1000);
 		morph_blue = Opening(img_blue_neg, erode_iterations_blue, dilate_iterations_blue);
 		//imshow("morph_blue", morph_blue);	
 		//imshow("Blue segmentation", img_blue_neg);
 		
 		// Test the final result
-		imshow("morph_red", morph_red);	
-		imshow("morph_yellow", morph_yellow);	
-		imshow("morph_blue", morph_blue);		
+        ///imshow("morph_red", morph_red);
+        //imshow("morph_yellow", morph_yellow);
+        //imshow("morph_blue", morph_blue);
 		waitKey(3);
 		
 		// Here the code from Michael will be implemened.
@@ -529,16 +571,16 @@ class ImageConverter
 		//findCenterAndAngle(contours_blue, center_blue, angle_blue, true, 800, 2000, leftLowerPoint.y, leftUpperPoint.y);
 		
 		//cout << "Here we got..." << endl;
-        int brickRed = 0;
-        int brickYellow = 0;
-        int brickBlue = 0;
+        //previousRedBricks = currentRedBricks;
+        //previousRedBricks = currentRedBricks;
+
 		for (int i = 0; i < center_red.size(); ++i)
 		{
 			//cout << "Center red: " << i << " is " << center_red[i] << endl;
 			//cout << "Angle red:  " << i << " is " << angle_red[i] << endl;
 			circle(img_cropped, center_red[i], 5, Scalar(0, 0, 255), -1, 8, 0);
 			circle(img_cropped, center_red[i], 10, Scalar(0, 0, 0), 1, 8, 0);
-            brickRed++;
+            redBricks++;
             //cout << "Center red coordinate is: " << center_red[i] << endl;
 		
 			putText(img_cropped, centerToString("Center : ", center_red[i]), Point(center_red[i].x, center_red[i].y - 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
@@ -555,7 +597,7 @@ class ImageConverter
 			//cout << "Angle yellow:  " << i << " is " << angle_yellow[i] << endl;
 			circle(img_cropped, center_yellow[i], 5, Scalar(0, 255, 255), -1, 8, 0);
 			circle(img_cropped, center_yellow[i], 10, Scalar(0, 0, 0), 1, 8, 0);
-            brickYellow++;
+            yellowBricks++;
 
 			putText(img_cropped, centerToString("Center : ", center_yellow[i]), Point(center_yellow[i].x, center_yellow[i].y - 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
 			putText(img_cropped, doubleToString("Angle  : ", angle_yellow[i]), Point(center_yellow[i].x, center_yellow[i].y), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
@@ -572,7 +614,7 @@ class ImageConverter
 			//cout << "Angle blue:  " << i << " is " << angle_blue[i] << endl;
 			circle(img_cropped, center_blue[i], 5, Scalar(255, 0, 0), -1, 8, 0);
 			circle(img_cropped, center_blue[i], 10, Scalar(0, 0, 0), 1, 8, 0);
-            brickBlue++;
+            blueBricks++;
 
 			putText(img_cropped, centerToString("Center : ", center_blue[i]), Point(center_blue[i].x, center_blue[i].y - 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
 			putText(img_cropped, doubleToString("Angle  : ", angle_blue[i]), Point(center_blue[i].x, center_blue[i].y), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
@@ -598,74 +640,121 @@ class ImageConverter
             //
 
         // If there is no brick in the cameras field of view, we just wait...
-        if((brickRed == 0) && (brickYellow == 0) && (brickBlue == 0))
+        //Scalar(RedBricks, YellowBricks, BlueBricks);
+
+        if((redBricks == 0) && (yellowBricks == 0) && (blueBricks == 0))
         {
-            cout << "There is no brick in the cameras field of view" << endl;
+            cout << "Nothing has been changed in the brick situation..." << endl;
         }
 
-        // Else there must be some bricks in the camreas field of view, and we have to check if each of the LEGO bricks poses has been
-        // sendt to the topic.
+        // Else there must be some bricks in the camreas field of view, that changed the brick situation/state
         else
         {
-            vector<double> test;
+            /*
+             Perhaps do a do-while loop in here
+             Like do <Find the transformation matrix for the u,v, and angle and publish the transformatin on a topic.
+             Then update the brick state, so if there was 1 red LEGO brick in the image,
+             --> previousRedBricks = currentRedBricks
+             --> and then do this while (previousRedBricks =!currentRedBricks )
+             */
+
+            vector<double> elements; //
+            vector<vector<double> > transformation_vector; //
+            vector<geometry_msgs::Pose> poses;
+
 
             // Draw the centerpoint in the image
+            double x,y,z,roll,pitch,yaw;
+            z = 0.30;                     // Rough estimate of the depth, approx 30 cm. Should be remeassured in final implementation.
+            roll = 0.1;                     // We need make a funktion that output the roll depending on the u value in the image.
 
-
-
-            double z = 0.30;                     // Rough estimate of the depth, approx 30 cm. Should be remeassured in final implementation.
             double fx = 1194.773485/resizeScale; // Info extracted from /camera/camera_info topic with ROS. Use rostopic echo /camera/camera_info
             double fy = 1192.665666/resizeScale; // Info extracted from /camera/camera_info topic with ROS. Use rostopic echo /camera/camera_info
-            if (brickRed > 0)
+
+            if (redBricks > 0)
             {
-                cout << "There is a red brick inside the field" << endl;
-                // Call the x,y,z convertion function for the each red brick.
-                cout << "The number of red bricks is: " << center_red.size() << endl;
+                //cout << "There is a red brick inside the field" << endl;
+                for (int i = 0; i < center_red.size(); i++)
+                {
+                    cout << "i red is: " << i << endl;
+                    x = GetXY(center_red[i].x, z, fx, img_cropped.cols);
+                    y = GetXY(center_red[i].y, z, fy, img_cropped.rows);
 
-                // Use the u and v to transform over to x and y.
-                // The z value is depended on how the x and y value is.
-                // The roll also depends on how the x and y value is
-                // The pitch is the incline of the conveyore belt
-                // The yaw is the orientation, which Michael has calculated by minRectArea.
-                test = GetXY(center_red[0].x, center_red[0].y, z, fx, fy, img_cropped.cols, img_cropped.rows);
-                cout << "The first brick is at: (" << 100*test.at(0) << "," << 100*test.at(1) <<") cm" << endl;
+                    // Multiply with 100 to get to cm. The white dot in the image is origo, (0,0)
+                    pose.position.x = 100*x;
+                    pose.position.y = 100*y;
+                    pose.position.z = 100*z;
+                    pose.orientation.x = roll;
+                    pose.orientation.y = 17.03;   // Pitch is the inclination of the conveyor belt. This is static. Unit is in degree.
+                    pose.orientation.z = angle_red[i]; // Yaw is the rotation of the bricks when lying on the conveyorbelt.
+      //              pose.orientation.w = q.getW();   // What
 
-                test = GetXY(center_red[1].x, center_red[1].y, z, fx, fy, img_cropped.cols, img_cropped.rows);
-                cout << "The secound brick is at: (" << 100*test.at(0) << "," << 100*test.at(1) <<") cm" << endl;
+                    poses.push_back(pose);
 
+                    // Here we publish on the ROS topic, the pose.
+                    // Then we keep track of what we have sent...
+                    alreadySend.push_back(center_red[i]);
 
-                test = GetXY(center_red[2].x, center_red[2].y, z, fx, fy, img_cropped.cols, img_cropped.rows);
-                cout << "The third brick is at: (" << 100*test.at(0) << "," << 100*test.at(1) <<") cm" << endl;
+                    cout << "The pose is: " << pose << endl;
+                }
             }
 
-            if (brickYellow > 0)
+            if (yellowBricks > 0)
             {
-                cout << "There is a yellow brick inside the field" << endl;
+                //cout << "There is a yellow brick inside the field" << endl;
+                for (int i = 0; i < center_yellow.size(); i++)
+                {
+                    cout << "i yellow is: " << i << endl;
+                    x = GetXY(center_yellow[i].x, z, fx, img_cropped.cols);
+                    y = GetXY(center_yellow[i].y, z, fy, img_cropped.rows);
+
+                    // Multiply with 100 to get to cm. The white dot in the image is origo, (0,0)
+                    pose.position.x = 100*x;
+                    pose.position.y = 100*y;
+                    pose.position.z = 100*z;
+                    pose.orientation.x = roll;
+                    pose.orientation.y = 17.03;   // Pitch is the inclination of the conveyor belt. This is static. Unit is in degree.
+                    pose.orientation.z = angle_yellow[i]; // Yaw is the rotation of the bricks when lying on the conveyorbelt.
+      //              pose.orientation.w = q.getW();   // What
+
+                    poses.push_back(pose);
+
+                    // Here we publish on the ROS topic, the pose.
+                    // Then we keep track of what we have sent...
+                    alreadySend.push_back(center_yellow[i]);
+
+                    cout << "The pose is: " << pose << endl;
+                }
             }
 
-            if (brickBlue > 0)
+            if (blueBricks > 0)
             {
-                cout << "There is a blue brick inside the field" << endl;
+                //cout << "There is a blue brick inside the field" << endl;
+                for (int i = 0; i < center_blue.size(); i++)
+                {
+                    cout << "i blue is: " << i << endl;
+                    x = GetXY(center_blue[i].x, z, fx, img_cropped.cols);
+                    y = GetXY(center_blue[i].y, z, fy, img_cropped.rows);
+
+                    // Multiply with 100 to get to cm. The white dot in the image is origo, (0,0)
+                    pose.position.x = 100*x;
+                    pose.position.y = 100*y;
+                    pose.position.z = 100*z;
+                    pose.orientation.x = roll;
+                    pose.orientation.y = 17.03;   // Pitch is the inclination of the conveyor belt. This is static. Unit is in degree.
+                    pose.orientation.z = angle_blue[i]; // Yaw is the rotation of the bricks when lying on the conveyorbelt.
+      //            pose.orientation.w = q.getW();   // What
+
+                    poses.push_back(pose);
+
+                    // Here we publish on the ROS topic, the pose.
+                    // Then we keep track of what we have sent...
+                    alreadySend.push_back(center_blue[i]);
+
+                    cout << "The pose is: " << pose << endl;
+                }
+                //cout << "vector of poses size is: " << poses.size() << endl;
             }
-
-
-
-
-            // So we know that there is at leat one centroid coordinate for each color.
-            vector<vector<int> > vi;
-            vi.push_back( vector <int>() );
-
-
-
-            vi.at(0).push_back( 42 );
-            vi.at(0).push_back( 55 );
-
-            cout << "should be 42 " << vi.at(0).at(0) << endl;    // prints 42
-            cout << "should be 55 " << vi.at(0).at(1) << endl;    // prints 55
-
-
-            vi.at(0).at(0) = 232;
-            cout << vi.at(0).at(0) << endl;    // prints 232
         }
 
 		// NOTE: Remember that if there is no color in the frame and we do 
@@ -719,7 +808,8 @@ class ImageConverter
 				
 		p_pub.publish(pose);
 		*/
-	}
+    }
+
 };
 
 int main(int argc, char** argv)
