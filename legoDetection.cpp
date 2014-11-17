@@ -17,14 +17,19 @@
 #include <tf/transform_listener.h>
 
 //Our self define msg file
-//#include <rsd_project/bricks.h>
-
+#include <rsd_project/bricks_to_robot.h>
 
 using namespace cv;
 using namespace std;
 
 #define xy_hys 10
 #define maxMorph 20
+
+// Maybee thise defines need to be redefined when interfacing to the MES-server, regarding some MES-standards.
+#define RED_BRICK "Red"
+#define YELLOW_BRICK "Yellow"
+#define BLUE_BRICK "Blue"
+
 ///////////////////////////////////////////////////////////
 // Global variables
 ///////////////////////////////////////////////////////////
@@ -90,14 +95,39 @@ int blueBricks = 0;
 class ImageConverter
 {
 	ros::NodeHandle nh_;
-	image_transport::ImageTransport it_;
+    image_transport::ImageTransport it_;
 	image_transport::Subscriber image_sub_;
 	image_transport::Publisher image_pub_;
-	
-	ros::Publisher p_pub;
-	
+
+    /*
+     Here the bricks_msg object is created, which use the user-defined msg file "bricks_to_robot.msg"
+     There are some things to add, when creating a new msg file, and you want to use it in the code
+        - Add file in "msg" folder with .msg at end of filename.
+        - Enter the package.xml and add the following: (In this example the libraries is from geometry_msgs)
+            <build_depend>geometry_msgs</build_depend> and
+            <run_depend>geometry_msgs</run_depend>
+
+        -find_package(catkin REQUIRED COMPONENTS
+            geometry_msgs ....
+
+        - Add in the CmakeList this:
+            generate_messages(
+                DEPENDENCIES
+                std_msgs
+                geometry_msgs
+
+        - Add the msg file
+            add_message_files(
+                FILES
+                bricks_to_robot.msg
+
+   */
+
+    rsd_project::bricks_to_robot bricks_msg;
+    ros::Publisher p_pub;
+
 	public:
-	ImageConverter():it_(nh_)
+    ImageConverter():it_(nh_)
 	{
 		// Subscrive to input video feed and publish output video feed
 		image_sub_ = it_.subscribe("/camera/image_raw", 1, &ImageConverter::imageCb, this);
@@ -211,7 +241,6 @@ class ImageConverter
         vector<RotatedRect> minRect( contours.size() );
         Point2d tempCenter;
         double tempAngle;
-        double tempArea;
         double tempHeight;
         bool alreadySendBool;
 
@@ -252,12 +281,6 @@ class ImageConverter
             {
                 continue;
             }
-
-//            if ((tempArea < minArea) or (tempArea > maxArea))
-//            {
-//                //cout << "Breaking the loop" << endl;
-//                continue;
-//            }
 
             tempCenter = minRect[i].center;
             tempAngle = minRect[i].angle;
@@ -310,99 +333,9 @@ class ImageConverter
                     showAngle.push_back(tempAngle);
                     showHeight.push_back(tempHeight);
                 }
-
             }
         }
     }
-
-//	void findCenterAndAngle(vector<vector<Point> > &contours, vector<Point2d> &center, vector<double> &angle, vector<double> &area, bool degrees, int lowerLine, int upperLine, int minArea, int maxArea)
-//	{
-//		// minArea is setted for red to 1700. maxArea is not defined yet
-//		vector<RotatedRect> minRect( contours.size() );
-//		Point2d tempCenter;
-//		double tempAngle;
-//		double tempArea;
-//        bool alreadySendBool;
-
-//		for (uint i = 0; i < contours.size(); i++) // each img
-//		{
-//            if (contourArea(contours[i]) < 500)
-//            {
-//                cout << "contourArea(contours[i]) is < than 500 so we skip this" << endl;
-//                continue;
-//            }
-
-//			// Now we ignore if two same colored LEGO bricks is touching each other
-//			// Because if this is true, the area is much bigger and we have setted the
-//			// maximum Area.
-
-//			tempArea = contourArea(contours[i]);
-
-//			if ((tempArea < minArea) or (tempArea > maxArea))
-//			{
-//				//cout << "Breaking the loop" << endl;
-//				continue;
-//			}
-
-//			minRect[i] = minAreaRect( Mat(contours[i]) );
- 
-//			tempCenter = minRect[i].center;
-//			tempAngle = minRect[i].angle;
-
-//            cout << "The heigh of the brick is: " << minRect[i].size.height << endl;
-//            cout << "The width of the brick is: " << minRect[i].size.width << endl;
-//            if( minRect[i].size.height > minRect[i].size.width)
-//            {
-//                cout << "The ratio height/width is: " << double(minRect[i].size.height)/double(minRect[i].size.width) << endl;
-//            }
-//            else
-//            {
-//                // Else we swop the fraction...
-//                cout << "The ratio height/width is: " << double(minRect[i].size.width)/double(minRect[i].size.height) << endl;
-//            }
-
-//			if (tempAngle == -0)
-//			{
-//				tempAngle = 0;
-//			}
-
-//			if ( (floor(minRect[i].size.height + 0.5)) < (floor(minRect[i].size.width + 0.5)) and tempAngle != 0 )
-//			{
-//				tempAngle = tempAngle + M_PI*(180/M_PI);
-//			}
-//			else if ((floor(minRect[i].size.height + 0.5)) > (floor(minRect[i].size.width + 0.5)) or tempAngle != 0)
-//			{
-//				tempAngle = tempAngle + 0.5*M_PI*(180/M_PI);
-//			}
-
-//			if ( degrees == false )
-//			{
-//				tempAngle = tempAngle * (M_PI/180);
-//			}
-
-//            alreadySendBool = false;
-//            for (uint j = 0; j < alreadySend.size(); j++)
-//            {
-//                //cout << "TempCenter is: " << tempCenter << endl;
-//                if ((tempCenter.x <= alreadySend[j].x + xy_hys) && (tempCenter.x >= alreadySend[j].x - xy_hys) && (tempCenter.y <= alreadySend[j].y + xy_hys) && (tempCenter.y >= alreadySend[j].y - xy_hys) )
-//                {
-//                    //cout << "TempCenter is the same" << endl;
-//                    alreadySendBool = true;
-//                    break;
-//                }
-//            }
-
-//            if (alreadySendBool == false)
-//            {
-//                if ((tempCenter.y > lowerLine) and (tempCenter.y < upperLine))
-//                {
-//                    center.push_back(tempCenter);
-//                    angle.push_back(tempAngle);
-//                    area.push_back(tempArea);
-//                }
-//            }
-//		}
-//	}
 	
 	string doubleToString( string info, double number )
 	{
@@ -503,14 +436,19 @@ class ImageConverter
 		}
 		
 		// Here I added the publisher so we can publish the lego pse
-		p_pub = nh_.advertise<geometry_msgs::Pose>("lego_pose", 1);
-		ros::Rate rate(publish_frequency);
+        //p_pub = nh_.advertise<geometry_msgs::Pose>("lego_pose", 1);
+        p_pub = nh_.advertise<rsd_project::bricks_to_robot>("lego_pose", 1);
+        ros::Rate rate(publish_frequency);
 		geometry_msgs::Pose pose;
 		tf::Quaternion q;
-		
+
 		// Store the image from the webcam into inputImage
 		Mat inputImage;
 		inputImage = cv_ptr->image;
+
+        // Here the time is initialized...
+        ros::Time tid;
+        tid = ros::Time::now();
 
 		// Resize scale
         int resizeScale = 2;
@@ -830,7 +768,6 @@ class ImageConverter
                 //cout << "There is a red brick inside the field" << endl;
                 for (int i = 0; i < center_red.size(); i++)
                 {
-                    cout << "i red is: " << i << endl;
                     x = GetXY(center_red[i].x, z, fx, img_cropped.cols);
                     y = GetXY(center_red[i].y, z, fy, img_cropped.rows);
 
@@ -843,17 +780,26 @@ class ImageConverter
                     pose.orientation.z = angle_red[i]; // Yaw is the rotation of the bricks when lying on the conveyorbelt.
       //              pose.orientation.w = q.getW();   // What
 
-                    poses.push_back(pose);
+                    // Dont know why we created a vector of poses, but we did somehow...
+                    //poses.push_back(pose);
 
-                    // Pubish the red brick pose on a topic
-                    p_pub.publish(pose);
+                    // Set the pose into the bricks_msg
+                    bricks_msg.pose = pose;
+
+                    // Set the time into bricks_msg
+                    bricks_msg.header.stamp = tid;
+
+                    // Set the time into bricks_msg
+                    bricks_msg.header.frame_id = RED_BRICK;
+
+                    // Pubish the yellow brick pose on a topic together with pose and time.
+                    p_pub.publish(bricks_msg);
 
                     // Here we publish on the ROS topic, the pose.
                     // Then we keep track of what we have sent...
                     alreadySend.push_back(center_red[i]);
 
-                    cout << "The pose is: " << pose << endl;
-                    cout << "\n" << endl;
+                    cout << "------------------ Next brick ------------------ \n" << bricks_msg << endl;
                 }
             }
 
@@ -862,7 +808,6 @@ class ImageConverter
                 //cout << "There is a yellow brick inside the field" << endl;
                 for (int i = 0; i < center_yellow.size(); i++)
                 {
-                    cout << "i yellow is: " << i << endl;
                     x = GetXY(center_yellow[i].x, z, fx, img_cropped.cols);
                     y = GetXY(center_yellow[i].y, z, fy, img_cropped.rows);
 
@@ -875,17 +820,27 @@ class ImageConverter
                     pose.orientation.z = angle_yellow[i]; // Yaw is the rotation of the bricks when lying on the conveyorbelt.
       //              pose.orientation.w = q.getW();   // What
 
-                    poses.push_back(pose);
+                    // Dont know why we created a vector of poses, but we did somehow...
+                    //poses.push_back(pose);
 
-                    // Pubish the yellow brick pose on a topic
-                    p_pub.publish(pose);
+                    // Set the pose into the bricks_msg
+                    bricks_msg.pose = pose;
+
+                    // Set the time into bricks_msg
+                    bricks_msg.header.stamp = tid;
+
+                    // Set the time into bricks_msg
+                    bricks_msg.header.frame_id = YELLOW_BRICK;
+
+                    // Pubish the yellow brick pose on a topic together with pose and time.
+                    p_pub.publish(bricks_msg);
+
 
                     // Here we publish on the ROS topic, the pose.
                     // Then we keep track of what we have sent...
                     alreadySend.push_back(center_yellow[i]);
 
-                    cout << "The pose is: " << pose << endl;
-                    cout << "\n" << endl;
+                    cout << "------------------ Next brick ------------------ \n" << bricks_msg << endl;
                 }
             }
 
@@ -894,7 +849,6 @@ class ImageConverter
                 //cout << "There is a blue brick inside the field" << endl;
                 for (int i = 0; i < center_blue.size(); i++)
                 {
-                    cout << "i blue is: " << i << endl;
                     x = GetXY(center_blue[i].x, z, fx, img_cropped.cols);
                     y = GetXY(center_blue[i].y, z, fy, img_cropped.rows);
 
@@ -907,18 +861,27 @@ class ImageConverter
                     pose.orientation.z = angle_blue[i]; // Yaw is the rotation of the bricks when lying on the conveyorbelt.
       //            pose.orientation.w = q.getW();   // What
 
-                    poses.push_back(pose);
+                    // Dont know why we created a vector of poses, but we did somehow...
+                    //poses.push_back(pose);
 
-                    // Pubish the blue brick pose on a topic
-                    p_pub.publish(pose);
+                    // Set the pose into the bricks_msg
+                    bricks_msg.pose = pose;
+
+                    // Set the time into bricks_msg
+                    bricks_msg.header.stamp = tid;
+
+                    // Set the time into bricks_msg
+                    bricks_msg.header.frame_id = BLUE_BRICK;
+
+                    // Pubish the blue brick pose on a topic together with pose and time.
+                    p_pub.publish(bricks_msg);
 
                     // Here we publish on the ROS topic, the pose.
                     // Then we keep track of what we have sent...
                     alreadySend.push_back(center_blue[i]);
 
 
-                    cout << "The pose is: " << pose << endl;
-                    cout << "\n" << endl;
+                    cout << "------------------ Next brick ------------------ \n" << bricks_msg << endl;
                 }
                 //cout << "vector of poses size is: " << poses.size() << endl;
             }

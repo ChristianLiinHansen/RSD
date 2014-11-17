@@ -1,58 +1,69 @@
 #include "ros/ros.h"
-#include "std_msgs/String.h"
+#include <rsd_project/bricks_to_robot.h>   	// Added to include my custum msg file,bricks_to_robo.msg
+#include <geometry_msgs/Pose.h>
 
-/**
- * This tutorial demonstrates simple receipt of messages over the ROS system.
- */
-void chatterCallback(const std_msgs::String::ConstPtr& msg)
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/opencv.hpp>
+#include <opencv2/core/core.hpp>
+
+using namespace std;
+using namespace cv;
+
+// The r_and_theta callback function
+void brickPoseCallBack(const rsd_project::bricks_to_robot::ConstPtr& msg)
 {
-  ROS_INFO("I heard: [%s]", msg->data.c_str());
+    cout << "Do we get into this call back function?" << endl;
+
+
+    //cout << "The msg is: " << msg. << endl;
+
+
+    //    double r = num-> r;
+//	double theta = msg-> theta;
+	
+ //   cout << "I heard this num: " << num << endl;
+	
+    //ros::NodeHandle n;
+	
+	// Publisher cmd_velo
+    //ros::Publisher cmd_vel_pub = n.advertise<geometry_msgs::Twist>("/cmd_vel", 1);
 }
 
 int main(int argc, char **argv)
 {
-  /**
-   * The ros::init() function needs to see argc and argv so that it can perform
-   * any ROS arguments and name remapping that were provided at the command line. For programmatic
-   * remappings you can use a different version of init() which takes remappings
-   * directly, but for most command-line programs, passing argc and argv is the easiest
-   * way to do it.  The third argument to init() is the name of the node.
-   *
-   * You must call one of the versions of ros::init() before using any other
-   * part of the ROS system.
-   */
-  ros::init(argc, argv, "listener_nodeRSD");
+    ros::init(argc, argv, "listener_nodeRSD");
+	ros::NodeHandle n;
+	ros::Rate loop_rate(10);
+	
+    //rsd_project::bricks_to_robot:: num msg;
 
-  /**
-   * NodeHandle is the main access point to communications with the ROS system.
-   * The first NodeHandle constructed will fully initialize this node, and the last
-   * NodeHandle destructed will close down the node.
-   */
-  ros::NodeHandle n;
+    //Subscriber lego_pose
+    ros::Subscriber lego_pose_sub = n.subscribe("/lego_pose", 1000, brickPoseCallBack);
+	
+    // Publisher cmd_vel
+    //ros::Publisher cmd_vel_pub = n.advertise<geometry_msgs::Twist>("/cmd_vel", 1);
 
-  /**
-   * The subscribe() call is how you tell ROS that you want to receive messages
-   * on a given topic.  This invokes a call to the ROS
-   * master node, which keeps a registry of who is publishing and who
-   * is subscribing.  Messages are passed to a callback function, here
-   * called chatterCallback.  subscribe() returns a Subscriber object that you
-   * must hold on to until you want to unsubscribe.  When all copies of the Subscriber
-   * object go out of scope, this callback will automatically be unsubscribed from
-   * this topic.
-   *
-   * The second parameter to the subscribe() function is the size of the message
-   * queue.  If messages are arriving faster than they are being processed, this
-   * is the number of messages that will be buffered up before beginning to throw
-   * away the oldest ones.
-   */
-  ros::Subscriber sub = n.subscribe("chatter", 1000, chatterCallback);
-
-  /**
-   * ros::spin() will enter a loop, pumping callbacks.  With this version, all
-   * callbacks will be called from within this thread (the main one).  ros::spin()
-   * will exit when Ctrl-C is pressed, or the node is shutdown by the master.
-   */
-  ros::spin();
-
-  return 0;
+	while (ros::ok())
+	{
+		// Publish the r and theta trough ROS
+//		twist.linear.x = 0.2;
+//		twist.linear.y = 0.0;
+//		twist.linear.z = 0.0;
+//		
+//		twist.angular.x = 0.0;
+//		twist.angular.y = 0.0;
+//		twist.angular.z = 0.0;
+		
+		//cout << "Do we come to this point?" << endl;
+		//msg.number = 23;
+		//test_pub.publish(msg);
+		
+		// And then we send it on the test_pub topic
+		//cmd_vel_pub.publish(twist);
+		
+        //loop_rate.sleep();
+		ros::spinOnce();
+	}	
+	return 0;
 }
