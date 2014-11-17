@@ -12,20 +12,30 @@ using namespace cv;
 
 // The r_and_theta callback function
 void brickPoseCallBack(const rsd_project::bricks_to_robot::ConstPtr& msg)
+//void brickPoseCallBack(const rsd_project::bricks_to_robot& header)
 {
-    cout << "Do we get into this call back function?" << endl;
+    // Receive the pose
+    geometry_msgs::Pose pose;
+    pose = msg-> pose;
+    cout << "\n------------------ Brick received ------------------\n" << pose << "\n";
 
+    // Receive the timestamp
+    double receiveTime;
+    receiveTime = msg->header.stamp.toSec();
 
-    //cout << "The msg is: " << msg. << endl;
+    // Receive the ID
+    string color;
+    color = msg->header.frame_id;
+    cout << "Color: " << color << endl;
 
+    // Calculate the differnce in time from send to received
+    double currentTime = ros::Time::now().toSec();
+    double offset;
+    offset = currentTime-receiveTime;
+    cout << "offset from stamped in legoDetection to be accessable in listener_nodeRSD: " << offset << endl;
 
-    //    double r = num-> r;
-//	double theta = msg-> theta;
-	
- //   cout << "I heard this num: " << num << endl;
 	
     //ros::NodeHandle n;
-	
 	// Publisher cmd_velo
     //ros::Publisher cmd_vel_pub = n.advertise<geometry_msgs::Twist>("/cmd_vel", 1);
 }
