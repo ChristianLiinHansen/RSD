@@ -16,10 +16,15 @@
 #include <geometry_msgs/Pose.h>
 #include <tf/transform_listener.h>
 
+//Our self define msg file
+//#include <rsd_project/bricks.h>
+
+
 using namespace cv;
 using namespace std;
 
 #define xy_hys 10
+#define maxMorph 20
 ///////////////////////////////////////////////////////////
 // Global variables
 ///////////////////////////////////////////////////////////
@@ -68,6 +73,9 @@ int erode_iterations_yellow = 3;
 int dilate_iterations_yellow = 3;
 int erode_iterations_blue = 3;		
 int dilate_iterations_blue = 3;
+
+int erode_iterations = 0;
+int dilate_iterations = 0;
 
 double publish_frequency = 2;
 vector<Point2d> alreadySend;
@@ -197,51 +205,81 @@ class ImageConverter
 		return morph_img;
 	}
 	
-	void findCenterAndAngle(vector<vector<Point> > &contours, vector<Point2d> &center, vector<double> &angle, vector<double> &area, bool degrees, int lowerLine, int upperLine, int minArea, int maxArea)
-	{
-		// minArea is setted for red to 1700. maxArea is not defined yet
-		vector<RotatedRect> minRect( contours.size() );
-		Point2d tempCenter;
-		double tempAngle;
-		double tempArea;
+    void findCenterAndAngle(vector<vector<Point> > &contours, vector<Point2d> &center, vector<Point2d> &showCenter, vector<double> &angle, vector<double> &showAngle, vector<double> &height, vector<double> &showHeight, bool degrees, int lowerLine, int upperLine, int minHeight, int maxHeight)
+    {
+        // minArea is setted for red to 1700. maxArea is not defined yet
+        vector<RotatedRect> minRect( contours.size() );
+        Point2d tempCenter;
+        double tempAngle;
+        double tempArea;
+        double tempHeight;
         bool alreadySendBool;
-		for (uint i = 0; i < contours.size(); i++) // each img
-		{
-			// Now we ignore if two same colored LEGO bricks is touching each other
-			// Because if this is true, the area is much bigger and we have setted the
-			// maximum Area.
 
-			tempArea = contourArea(contours[i]);
+        for (uint i = 0; i < contours.size(); i++) // each img
+        {
+            // Only look for contours with area larger than 500
+            if (contourArea(contours[i]) < 500)
+            {
+                //cout << "contourArea(contours[i]) is < than 500 so we skip this" << endl;
+                continue;
+            }
 
-			if ((tempArea < minArea) or (tempArea > maxArea))
-			{
-				//cout << "Breaking the loop" << endl;
-				continue;
-			}
+            // Using the minAreaRect function to gain the width, height, center coordinate and area.
+            minRect[i] = minAreaRect( Mat(contours[i]) );
 
-			minRect[i] = minAreaRect( Mat(contours[i]) );
- 
-			tempCenter = minRect[i].center;
-			tempAngle = minRect[i].angle;
-			
-			if (tempAngle == -0)
-			{
-				tempAngle = 0;
-			}
+            // Now we ignore if two same colored LEGO bricks is touching each other
+            // Because if this is true, the area is much bigger and we have setted the
+            // maximum Area.
 
-			if ( (floor(minRect[i].size.height + 0.5)) < (floor(minRect[i].size.width + 0.5)) and tempAngle != 0 )
-			{
-				tempAngle = tempAngle + M_PI*(180/M_PI);
-			}
-			else if ((floor(minRect[i].size.height + 0.5)) > (floor(minRect[i].size.width + 0.5)) or tempAngle != 0)
-			{
-				tempAngle = tempAngle + 0.5*M_PI*(180/M_PI);
-			}
+            // Track LegoBricks compaired to the height and width of the system
 
-			if ( degrees == false )
-			{
-				tempAngle = tempAngle * (M_PI/180);
-			}
+            if(minRect[i].size.height > minRect[i].size.width)
+            {
+                tempHeight = minRect[i].size.height;
+                //cout << "The heigh of the brick is: " << minRect[i].size.height << endl;
+                //ratio = double(minRect[i].size.height)/double(minRect[i].size.width);
+                //cout << "The ratio height/width is: " << ratio << endl;
+            }
+
+            else
+            {
+                tempHeight = minRect[i].size.width;
+                //cout << "The heigh of the brick is: " << minRect[i].size.width << endl;
+            }
+
+            // Only look for ratio that is between minRatio and maxRatio
+            if((tempHeight < minHeight) || tempHeight > maxHeight)
+            {
+                continue;
+            }
+
+//            if ((tempArea < minArea) or (tempArea > maxArea))
+//            {
+//                //cout << "Breaking the loop" << endl;
+//                continue;
+//            }
+
+            tempCenter = minRect[i].center;
+            tempAngle = minRect[i].angle;
+
+            if (tempAngle == -0)
+            {
+                tempAngle = 0;
+            }
+
+            if ( (floor(minRect[i].size.height + 0.5)) < (floor(minRect[i].size.width + 0.5)) and tempAngle != 0 )
+            {
+                tempAngle = tempAngle + M_PI*(180/M_PI);
+            }
+            else if ((floor(minRect[i].size.height + 0.5)) > (floor(minRect[i].size.width + 0.5)) or tempAngle != 0)
+            {
+                tempAngle = tempAngle + 0.5*M_PI*(180/M_PI);
+            }
+
+            if ( degrees == false )
+            {
+                tempAngle = tempAngle * (M_PI/180);
+            }
 
             alreadySendBool = false;
             for (uint j = 0; j < alreadySend.size(); j++)
@@ -261,47 +299,110 @@ class ImageConverter
                 {
                     center.push_back(tempCenter);
                     angle.push_back(tempAngle);
-                    area.push_back(tempArea);
-                }
-            }
-
-            /*
-
-            if (alreadySend.empty() == true)
-            {
-                cout << "alreadySend vector is empty" << endl;
-                if ((tempCenter.y > lowerLine) and (tempCenter.y < upperLine))
-                {
-                    center.push_back(tempCenter);
-                    angle.push_back(tempAngle);
-                    area.push_back(tempArea);
+                    height.push_back(tempHeight);
                 }
             }
             else
             {
-                cout << "alreadySend vector is not empty" << endl;
-                for (uint j = 0; j < alreadySend.size(); j++)
+                if ((tempCenter.y > lowerLine) and (tempCenter.y < upperLine))
                 {
-                    if (tempCenter != alreadySend[j])
-                    {
-                        cout << "coordinate is not in already send, so we append" << endl;
-
-                        if ((tempCenter.y > lowerLine) and (tempCenter.y < upperLine))
-                        {
-                            center.push_back(tempCenter);
-                            angle.push_back(tempAngle);
-                            area.push_back(tempArea);
-                        }
-                    }
-                    else
-                    {
-                        break;
-                    }
+                    showCenter.push_back(tempCenter);
+                    showAngle.push_back(tempAngle);
+                    showHeight.push_back(tempHeight);
                 }
+
             }
-            */
-		}
-	}
+        }
+    }
+
+//	void findCenterAndAngle(vector<vector<Point> > &contours, vector<Point2d> &center, vector<double> &angle, vector<double> &area, bool degrees, int lowerLine, int upperLine, int minArea, int maxArea)
+//	{
+//		// minArea is setted for red to 1700. maxArea is not defined yet
+//		vector<RotatedRect> minRect( contours.size() );
+//		Point2d tempCenter;
+//		double tempAngle;
+//		double tempArea;
+//        bool alreadySendBool;
+
+//		for (uint i = 0; i < contours.size(); i++) // each img
+//		{
+//            if (contourArea(contours[i]) < 500)
+//            {
+//                cout << "contourArea(contours[i]) is < than 500 so we skip this" << endl;
+//                continue;
+//            }
+
+//			// Now we ignore if two same colored LEGO bricks is touching each other
+//			// Because if this is true, the area is much bigger and we have setted the
+//			// maximum Area.
+
+//			tempArea = contourArea(contours[i]);
+
+//			if ((tempArea < minArea) or (tempArea > maxArea))
+//			{
+//				//cout << "Breaking the loop" << endl;
+//				continue;
+//			}
+
+//			minRect[i] = minAreaRect( Mat(contours[i]) );
+ 
+//			tempCenter = minRect[i].center;
+//			tempAngle = minRect[i].angle;
+
+//            cout << "The heigh of the brick is: " << minRect[i].size.height << endl;
+//            cout << "The width of the brick is: " << minRect[i].size.width << endl;
+//            if( minRect[i].size.height > minRect[i].size.width)
+//            {
+//                cout << "The ratio height/width is: " << double(minRect[i].size.height)/double(minRect[i].size.width) << endl;
+//            }
+//            else
+//            {
+//                // Else we swop the fraction...
+//                cout << "The ratio height/width is: " << double(minRect[i].size.width)/double(minRect[i].size.height) << endl;
+//            }
+
+//			if (tempAngle == -0)
+//			{
+//				tempAngle = 0;
+//			}
+
+//			if ( (floor(minRect[i].size.height + 0.5)) < (floor(minRect[i].size.width + 0.5)) and tempAngle != 0 )
+//			{
+//				tempAngle = tempAngle + M_PI*(180/M_PI);
+//			}
+//			else if ((floor(minRect[i].size.height + 0.5)) > (floor(minRect[i].size.width + 0.5)) or tempAngle != 0)
+//			{
+//				tempAngle = tempAngle + 0.5*M_PI*(180/M_PI);
+//			}
+
+//			if ( degrees == false )
+//			{
+//				tempAngle = tempAngle * (M_PI/180);
+//			}
+
+//            alreadySendBool = false;
+//            for (uint j = 0; j < alreadySend.size(); j++)
+//            {
+//                //cout << "TempCenter is: " << tempCenter << endl;
+//                if ((tempCenter.x <= alreadySend[j].x + xy_hys) && (tempCenter.x >= alreadySend[j].x - xy_hys) && (tempCenter.y <= alreadySend[j].y + xy_hys) && (tempCenter.y >= alreadySend[j].y - xy_hys) )
+//                {
+//                    //cout << "TempCenter is the same" << endl;
+//                    alreadySendBool = true;
+//                    break;
+//                }
+//            }
+
+//            if (alreadySendBool == false)
+//            {
+//                if ((tempCenter.y > lowerLine) and (tempCenter.y < upperLine))
+//                {
+//                    center.push_back(tempCenter);
+//                    angle.push_back(tempAngle);
+//                    area.push_back(tempArea);
+//                }
+//            }
+//		}
+//	}
 	
 	string doubleToString( string info, double number )
 	{
@@ -418,17 +519,16 @@ class ImageConverter
 		Size size(inputImage.cols/resizeScale,inputImage.rows/resizeScale);//the dst image size,e.g.100x100
 		resize(inputImage,inputImage,size);//resize image
 		
-		// Create a ROI since the
+        // Create a ROI since the
 		Mat img_cropped;
 		int roi_x = 110;   
 		int roi_y = 0;
 		int roi_width = inputImage.cols-(2*roi_x);
 		//int roi_height = inputImage.rows - (2*roi_y);
 		int roi_height = inputImage.rows - 100;
-		//cout << "Image has width: " << roi_width << "and height: " << roi_height << endl;
 		
 		inputImage(Rect(roi_x,roi_y,roi_width,roi_height)).copyTo(img_cropped);
-		//imshow("Cropped image", img_cropped);
+        //imshow("Cropped image", img_cropped);
 		
 		//Convert the image into hsv
 		Mat hsvImage;
@@ -452,99 +552,77 @@ class ImageConverter
 				Scalar(hue_min_yellow, saturation_min_yellow, value_min_yellow), 
 				Scalar(hue_max_yellow, saturation_max_yellow, value_max_yellow),
 				img_yellow);    
-       imshow("Yellow segmentation ernice", img_yellow);
+       //imshow("Yellow segmentation ernice", img_yellow);
 
 		Mat img_blue;
 		inRange(hsvImage, 
 				Scalar(hue_min_blue, saturation_min_blue, value_min_blue), 
 				Scalar(hue_max_blue, saturation_max_blue, value_max_blue),
-				img_blue);      
+                img_blue);
+
+        // Show the inRange result for each image
+        //imshow("Red segmentation", img_red);
+        //imshow("Yellow segmentation",img_yellow);
         //imshow("Blue segmentation", img_blue);
 
-		// Do some morphology - red
-		Mat morph_red;
-        createTrackbar("Erode", "morph_red", &erode_iterations_red, 1000);
-        createTrackbar("Dilate", "morph_red", &dilate_iterations_red, 1000);
-		morph_red = Opening(img_red, erode_iterations_red, dilate_iterations_red);
-		
-		// Since it is hard to use only Hue to seperate between red and yellow,
-		// the yellow will get full hue range, and then use the red to subtract from the 
-		// yellow images. 
-		
-		// IMPORTANT! Yellow depends on red!
-        //imshow("morph_ired", morph_red);
-        //imshow("Red segmentation", img_red);
-		
-		// Jeg bruger img_yellow - morph_red, da morph_red ikke indeholder segmenter af gul
-		// Hvis jeg brugte img_red i subtraktionen, ville jeg trække gule segmenter fra
-		// og efterlade huller i de gule lego klodser. --> Svære og flere morphologier.
-        //img_yellow = img_yellow - morph_red;
-	
-		// Do some morphology - yellow
-		Mat morph_yellow;
-        createTrackbar("Erode", "morph_yellow", &erode_iterations_yellow, 1000);
-        createTrackbar("Dilate", "morph_yellow", &dilate_iterations_yellow, 1000);
-		morph_yellow = Opening(img_yellow, erode_iterations_yellow, dilate_iterations_yellow);
-		//imshow("morph_yellow", morph_yellow);	
-		//imshow("Yellow segmentation", img_yellow);
-		
-		// Get the negative image from the blue	
-		Mat img_blue_neg;
+        // A small HSV hack has been implemented to propper find blue bricks.
+        // The HSV for the blue ones need to be inverted in the binary image, before adding to the red-yellow segmentated image.
+
+        // Do the inversion of the blue image, since we did the HSV hack for the blue brick.
+        Mat img_blue_neg;
         img_blue_neg = 255 - img_blue;
-		
-		// And subtract the yellow image from the blue, so the yellow bricks
-		// do not get detected in the blue mask. 
-		
-		// IMPORTANT! Blue depends on yellow, which depends on red! W
-        img_blue_neg = img_blue_neg - img_yellow;
 
+        // And the final image is:
+        Mat img_seg;
+        img_seg = img_yellow + img_blue_neg;
 
-        imshow("img_blue_neg", img_blue_neg);
-        imshow("img_yellow",img_yellow);
+        // Here we can see, that all the bricks is founded in the img_seg.
+        // Now we need to do some morph to remove small noise pixels etc...
 
-        imshow("result", img_blue_neg+img_yellow);
-				
-		// Do some morphology - blue
-		Mat morph_blue;
-        createTrackbar("Erode", "morph_blue", &erode_iterations_blue, 1000);
-        createTrackbar("Dilate", "morph_blue", &dilate_iterations_blue, 1000);
-		morph_blue = Opening(img_blue_neg, erode_iterations_blue, dilate_iterations_blue);
-		//imshow("morph_blue", morph_blue);	
-		//imshow("Blue segmentation", img_blue_neg);
+        //imshow("Final image before morph", img_seg);
+
+        // Note: Since the total segmentated image, img_seg is much nicer now there is really no noise pixel.
+        // However the blue brick still suffer from small holes and therefore we close thoese holes by
+        // use som Closing. Not Opening. Opening was more nicer to use, if we wanted to get rid of small noise pixels.
+        Mat img_morph;
+        createTrackbar("Erode", "Final image after morph", &erode_iterations, maxMorph);
+        createTrackbar("Dilate", "Final image after morph", &dilate_iterations, maxMorph);
+        img_morph = Closing(img_seg, erode_iterations, dilate_iterations);
+
+        imshow("Final image after morph", img_morph);
+
+        // Do segmentation
+        vector< vector <Point> > contours;
+        findContours(img_seg, contours, CV_RETR_LIST, CV_CHAIN_APPROX_NONE);
+
+//		findContours(morph_red, contours_red, CV_RETR_LIST, CV_CHAIN_APPROX_NONE);
+//		findContours(morph_yellow, contours_yellow, CV_RETR_LIST, CV_CHAIN_APPROX_NONE);
+//		findContours(morph_blue, contours_blue, CV_RETR_LIST, CV_CHAIN_APPROX_NONE);
 		
-		// Test the final result
-        ///imshow("morph_red", morph_red);
-        //imshow("morph_yellow", morph_yellow);
-        //imshow("morph_blue", morph_blue);
-		waitKey(3);
-		
-		// Here the code from Michael will be implemened.
-		vector< vector <Point> > contours_red;
-		vector< vector <Point> > contours_yellow;
-		vector< vector <Point> > contours_blue;
-
-//        if(alreadySend.empty())
-//        {
-//            alreadySend.push_back(Point2d(542, 103));
-//            cout << "alreadySend size is: " << alreadySend.size() << endl;
-//        }
-
-		findContours(morph_red, contours_red, CV_RETR_LIST, CV_CHAIN_APPROX_NONE);
-		findContours(morph_yellow, contours_yellow, CV_RETR_LIST, CV_CHAIN_APPROX_NONE);
-		findContours(morph_blue, contours_blue, CV_RETR_LIST, CV_CHAIN_APPROX_NONE);
-		
+        // Center
 		vector<Point2d> center_red;
 		vector<Point2d> center_yellow;
 		vector<Point2d> center_blue;
+        vector<Point2d> showCenter_red;
+        vector<Point2d> showCenter_yellow;
+        vector<Point2d> showCenter_blue;
 		
+        // Angle
 		vector<double> angle_red;
 		vector<double> angle_yellow;
 		vector<double> angle_blue;
+        vector<double> showAngle_red;
+        vector<double> showAngle_yellow;
+        vector<double> showAngle_blue;
 		
-		vector<double> area_red;
-		vector<double> area_yellow;
-		vector<double> area_blue;
-		
+        // Height
+        vector<double> height_red;
+        vector<double> height_yellow;
+        vector<double> height_blue;
+        vector<double> showHeight_red;
+        vector<double> showHeight_yellow;
+        vector<double> showHeight_blue;
+
 		// Note: If the brick is not found after the line, then check on the minArea and maxArea
 		// Perhaps the limits is too tight and should be expanded a little. 
 		Point leftLowerPoint, rightLowerPoint, leftUpperPoint, rightUpperPoint;
@@ -562,9 +640,13 @@ class ImageConverter
 		// If two LEGO bricks is touching each other, then the area is of course larger
 		// This is at the moment not talking into account...
 		
-		findCenterAndAngle(contours_red, center_red, angle_red, area_red, true, leftLowerPoint.y, leftUpperPoint.y, 1500, 4000);
-		findCenterAndAngle(contours_yellow, center_yellow, angle_yellow, area_yellow, true, leftLowerPoint.y, leftUpperPoint.y, 2500, 5000);
-		findCenterAndAngle(contours_blue, center_blue, angle_blue, area_blue, true, leftLowerPoint.y, leftUpperPoint.y, 800, 2000);
+        findCenterAndAngle(contours, center_red,    showCenter_red,     angle_red,      showAngle_red,      height_red,     showHeight_red,     true, leftLowerPoint.y, leftUpperPoint.y, 70, 80);
+        findCenterAndAngle(contours, center_yellow, showCenter_yellow,  angle_yellow,   showAngle_yellow,   height_yellow,  showHeight_yellow,  true, leftLowerPoint.y, leftUpperPoint.y, 100, 120);
+        findCenterAndAngle(contours, center_blue,   showCenter_blue,    angle_blue,     showAngle_blue,     height_blue,    showHeight_blue,    true, leftLowerPoint.y, leftUpperPoint.y, 30, 45);
+
+//        findCenterAndAngle(contours, center_red, angle_red, area_red, true, leftLowerPoint.y, leftUpperPoint.y, 1601, 3500);
+//        findCenterAndAngle(contours, center_yellow, angle_yellow, area_yellow, true, leftLowerPoint.y, leftUpperPoint.y, 3501, 5000);
+//        findCenterAndAngle(contours, center_blue, angle_blue, area_blue, true, leftLowerPoint.y, leftUpperPoint.y, 800, 1600);
 						
 		//findCenterAndAngle(contours_red, center_red, angle_red, true, 1500, 4000, leftLowerPoint.y, leftUpperPoint.y);
 		//findCenterAndAngle(contours_yellow, center_yellow, angle_yellow, true, 2500, 5000, leftLowerPoint.y, leftUpperPoint.y);
@@ -574,53 +656,125 @@ class ImageConverter
         //previousRedBricks = currentRedBricks;
         //previousRedBricks = currentRedBricks;
 
-		for (int i = 0; i < center_red.size(); ++i)
+        int tempSizeRed = 0;
+        if(center_red.size() > 0)
+        {
+            tempSizeRed = center_red.size();
+        }
+        else
+        {
+            tempSizeRed = showCenter_red.size();
+        }
+
+        for (int i = 0; i < tempSizeRed; ++i)
 		{
 			//cout << "Center red: " << i << " is " << center_red[i] << endl;
 			//cout << "Angle red:  " << i << " is " << angle_red[i] << endl;
-			circle(img_cropped, center_red[i], 5, Scalar(0, 0, 255), -1, 8, 0);
-			circle(img_cropped, center_red[i], 10, Scalar(0, 0, 0), 1, 8, 0);
+            //circle(img_cropped, center_red[i], 5, Scalar(0, 0, 255), -1, 8, 0);
+            //circle(img_cropped, center_red[i], 10, Scalar(0, 0, 0), 1, 8, 0);
+
+            if(!showCenter_red.empty())
+            {
+                circle(img_cropped, showCenter_red[i], 5, Scalar(0, 0, 255), -1, 8, 0);
+                circle(img_cropped, showCenter_red[i], 10, Scalar(0, 0, 0), 1, 8, 0);
+                putText(img_cropped, centerToString("Center : ", showCenter_red[i]),    Point(showCenter_red[i].x, showCenter_red[i].y - 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
+                putText(img_cropped, doubleToString("Angle  : ", showAngle_red[i]),     Point(showCenter_red[i].x, showCenter_red[i].y), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
+                putText(img_cropped, doubleToString("Height : ", showHeight_red[i]),    Point(showCenter_red[i].x, showCenter_red[i].y + 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
+            }
+            else
+            {
+                circle(img_cropped, center_red[i], 5, Scalar(0, 0, 255), -1, 8, 0);
+                circle(img_cropped, center_red[i], 10, Scalar(0, 0, 0), 1, 8, 0);
+                putText(img_cropped, centerToString("Center : ", center_red[i]), Point(center_red[i].x, center_red[i].y - 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
+                putText(img_cropped, doubleToString("Angle  : ", angle_red[i]), Point(center_red[i].x, center_red[i].y), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
+                putText(img_cropped, doubleToString("Height : ", height_red[i]), Point(center_red[i].x, center_red[i].y + 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
+            }
+
             redBricks++;
             //cout << "Center red coordinate is: " << center_red[i] << endl;
 		
-			putText(img_cropped, centerToString("Center : ", center_red[i]), Point(center_red[i].x, center_red[i].y - 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
-			putText(img_cropped, doubleToString("Angle  : ", angle_red[i]), Point(center_red[i].x, center_red[i].y), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
-			putText(img_cropped, doubleToString("Area   : ", area_red[i]), Point(center_red[i].x, center_red[i].y + 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);			
 		}
 		
 		//cout << "-----------------------------------------------------------------" << endl;
 		//cout << "\n" << endl;
 		
-		for (int i = 0; i < center_yellow.size(); ++i)
+        int tempSizeYellow = 0;
+        if(center_yellow.size() > 0)
+        {
+            tempSizeYellow = center_yellow.size();
+        }
+        else
+        {
+            tempSizeYellow = showCenter_yellow.size();
+        }
+
+        for (int i = 0; i < tempSizeYellow; ++i)
 		{
 			//cout << "Center yellow: " << i << " is " << center_yellow[i] << endl;
 			//cout << "Angle yellow:  " << i << " is " << angle_yellow[i] << endl;
-			circle(img_cropped, center_yellow[i], 5, Scalar(0, 255, 255), -1, 8, 0);
-			circle(img_cropped, center_yellow[i], 10, Scalar(0, 0, 0), 1, 8, 0);
-            yellowBricks++;
 
-			putText(img_cropped, centerToString("Center : ", center_yellow[i]), Point(center_yellow[i].x, center_yellow[i].y - 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
-			putText(img_cropped, doubleToString("Angle  : ", angle_yellow[i]), Point(center_yellow[i].x, center_yellow[i].y), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
-			putText(img_cropped, doubleToString("Area   : ", area_yellow[i]), Point(center_yellow[i].x, center_yellow[i].y + 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);	
-			
+            if(!showCenter_yellow.empty())
+            {
+                circle(img_cropped, showCenter_yellow[i], 5, Scalar(0, 255, 255), -1, 8, 0);
+                circle(img_cropped, showCenter_yellow[i], 10, Scalar(0, 0, 0), 1, 8, 0);
+                putText(img_cropped, centerToString("Center : ", showCenter_yellow[i]),    Point(showCenter_yellow[i].x, showCenter_yellow[i].y - 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
+                putText(img_cropped, doubleToString("Angle  : ", showAngle_yellow[i]),     Point(showCenter_yellow[i].x, showCenter_yellow[i].y), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
+                putText(img_cropped, doubleToString("Height : ", showHeight_yellow[i]),    Point(showCenter_yellow[i].x, showCenter_yellow[i].y + 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
+            }
+            else
+            {
+                circle(img_cropped, center_yellow[i], 5, Scalar(0, 255, 255), -1, 8, 0);
+                circle(img_cropped, center_yellow[i], 10, Scalar(0, 0, 0), 1, 8, 0);
+                putText(img_cropped, centerToString("Center : ", center_yellow[i]), Point(center_yellow[i].x, center_yellow[i].y - 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
+                putText(img_cropped, doubleToString("Angle  : ", angle_yellow[i]), Point(center_yellow[i].x, center_yellow[i].y), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
+                putText(img_cropped, doubleToString("Height : ", height_yellow[i]), Point(center_yellow[i].x, center_yellow[i].y + 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
+            }
+
+            yellowBricks++;
 		}
 		
 		//cout << "-----------------------------------------------------------------" << endl;
 		//cout << "\n" << endl;
 		
-		for (int i = 0; i < center_blue.size(); ++i)
+        int tempSizeBlue = 0;
+        if(center_blue.size() > 0)
+        {
+            tempSizeBlue = center_blue.size();
+        }
+        else
+        {
+            tempSizeBlue = showCenter_blue.size();
+        }
+
+
+        for (int i = 0; i < tempSizeBlue; ++i)
 		{
 			//cout << "Center blue: " << i << " is " << center_blue[i] << endl;
 			//cout << "Angle blue:  " << i << " is " << angle_blue[i] << endl;
-			circle(img_cropped, center_blue[i], 5, Scalar(255, 0, 0), -1, 8, 0);
-			circle(img_cropped, center_blue[i], 10, Scalar(0, 0, 0), 1, 8, 0);
-            blueBricks++;
 
-			putText(img_cropped, centerToString("Center : ", center_blue[i]), Point(center_blue[i].x, center_blue[i].y - 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
-			putText(img_cropped, doubleToString("Angle  : ", angle_blue[i]), Point(center_blue[i].x, center_blue[i].y), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
-			putText(img_cropped, doubleToString("Area   : ", area_blue[i]), Point(center_blue[i].x, center_blue[i].y + 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);	
+            if(!showCenter_blue.empty())
+            {
+                circle(img_cropped, showCenter_blue[i], 5, Scalar(255, 0, 0), -1, 8, 0);
+                circle(img_cropped, showCenter_blue[i], 10, Scalar(0, 0, 0), 1, 8, 0);
+                putText(img_cropped, centerToString("Center : ", showCenter_blue[i]),    Point(showCenter_blue[i].x, showCenter_blue[i].y - 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
+                putText(img_cropped, doubleToString("Angle  : ", showAngle_blue[i]),     Point(showCenter_blue[i].x, showCenter_blue[i].y), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
+                putText(img_cropped, doubleToString("Height : ", showHeight_blue[i]),    Point(showCenter_blue[i].x, showCenter_blue[i].y + 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
+
+            }
+            else
+            {
+                circle(img_cropped, center_blue[i], 5, Scalar(255, 0, 0), -1, 8, 0);
+                circle(img_cropped, center_blue[i], 10, Scalar(0, 0, 0), 1, 8, 0);
+                putText(img_cropped, centerToString("Center : ", center_blue[i]), Point(center_blue[i].x, center_blue[i].y - 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
+                putText(img_cropped, doubleToString("Angle  : ", angle_blue[i]), Point(center_blue[i].x, center_blue[i].y), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
+                putText(img_cropped, doubleToString("Height : ", height_blue[i]), Point(center_blue[i].x, center_blue[i].y + 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1, 8, false);
+            }
+
+            blueBricks++;	
 		}
 		
+
+
         // Drawings stuff on the output RGB image
 		line(img_cropped, leftLowerPoint, rightLowerPoint, Scalar(0, 255, 0), 2, 8, 0);
 		line(img_cropped, leftUpperPoint, rightUpperPoint, Scalar(0, 255, 0), 2, 8, 0);
@@ -691,11 +845,15 @@ class ImageConverter
 
                     poses.push_back(pose);
 
+                    // Pubish the red brick pose on a topic
+                    p_pub.publish(pose);
+
                     // Here we publish on the ROS topic, the pose.
                     // Then we keep track of what we have sent...
                     alreadySend.push_back(center_red[i]);
 
                     cout << "The pose is: " << pose << endl;
+                    cout << "\n" << endl;
                 }
             }
 
@@ -719,11 +877,15 @@ class ImageConverter
 
                     poses.push_back(pose);
 
+                    // Pubish the yellow brick pose on a topic
+                    p_pub.publish(pose);
+
                     // Here we publish on the ROS topic, the pose.
                     // Then we keep track of what we have sent...
                     alreadySend.push_back(center_yellow[i]);
 
                     cout << "The pose is: " << pose << endl;
+                    cout << "\n" << endl;
                 }
             }
 
@@ -747,15 +909,22 @@ class ImageConverter
 
                     poses.push_back(pose);
 
+                    // Pubish the blue brick pose on a topic
+                    p_pub.publish(pose);
+
                     // Here we publish on the ROS topic, the pose.
                     // Then we keep track of what we have sent...
                     alreadySend.push_back(center_blue[i]);
 
+
                     cout << "The pose is: " << pose << endl;
+                    cout << "\n" << endl;
                 }
                 //cout << "vector of poses size is: " << poses.size() << endl;
             }
         }
+
+
 
 		// NOTE: Remember that if there is no color in the frame and we do 
 		// something like: 
@@ -808,6 +977,12 @@ class ImageConverter
 				
 		p_pub.publish(pose);
 		*/
+
+        // Add this little wait for 1ms to be able to let OpenCV use the imshow function. IF this is avoided the imshow dont show
+        // any images...
+        //cout << "----------------------------------------------------------" << endl;
+        //cout << "\n" << endl;
+        waitKey(1);
     }
 
 };
