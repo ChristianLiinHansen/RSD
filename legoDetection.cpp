@@ -89,6 +89,8 @@ int redBricks = 0;
 int yellowBricks = 0;
 int blueBricks = 0;
 
+bool bricksFlag = true;
+
 ///////////////////////////////////////////////////////////
 // Class...
 ///////////////////////////////////////////////////////////
@@ -249,7 +251,6 @@ class ImageConverter
             // Only look for contours with area larger than 500
             if (contourArea(contours[i]) < 500)
             {
-                //cout << "contourArea(contours[i]) is < than 500 so we skip this" << endl;
                 continue;
             }
 
@@ -311,6 +312,18 @@ class ImageConverter
                 if ((tempCenter.x <= alreadySend[j].x + xy_hys) && (tempCenter.x >= alreadySend[j].x - xy_hys) && (tempCenter.y <= alreadySend[j].y + xy_hys) && (tempCenter.y >= alreadySend[j].y - xy_hys) )
                 {
                     //cout << "TempCenter is the same" << endl;
+                    alreadySend[j].x = tempCenter.x;
+                    alreadySend[j].y = tempCenter.y;
+
+                    cout << "alreadySend contains: " << alreadySend << "with size: " << alreadySend.size() << endl;
+                    if ((tempCenter.y < lowerLine) or (tempCenter.y > upperLine))
+                    {
+                        cout << "Now we are above or below the green lines with size: " << alreadySend.size() << endl;
+                        alreadySend.erase(alreadySend.begin() + j);
+                        cout << "alreadySend is less now and contains: " << alreadySend << endl;
+
+                    }
+
                     alreadySendBool = true;
                     break;
                 }
@@ -604,6 +617,7 @@ class ImageConverter
             tempSizeRed = showCenter_red.size();
         }
 
+        redBricks = 0;
         for (int i = 0; i < tempSizeRed; ++i)
 		{
 			//cout << "Center red: " << i << " is " << center_red[i] << endl;
@@ -646,6 +660,7 @@ class ImageConverter
             tempSizeYellow = showCenter_yellow.size();
         }
 
+        yellowBricks = 0;
         for (int i = 0; i < tempSizeYellow; ++i)
 		{
 			//cout << "Center yellow: " << i << " is " << center_yellow[i] << endl;
@@ -684,7 +699,7 @@ class ImageConverter
             tempSizeBlue = showCenter_blue.size();
         }
 
-
+        blueBricks = 0;
         for (int i = 0; i < tempSizeBlue; ++i)
 		{
 			//cout << "Center blue: " << i << " is " << center_blue[i] << endl;
@@ -734,9 +749,10 @@ class ImageConverter
         // If there is no brick in the cameras field of view, we just wait...
         //Scalar(RedBricks, YellowBricks, BlueBricks);
 
-        if((redBricks == 0) && (yellowBricks == 0) && (blueBricks == 0))
-        {
+        if((redBricks == 0) && (yellowBricks == 0) && (blueBricks == 0) && (bricksFlag == true))
+        {         
             cout << "Nothing has been changed in the brick situation..." << endl;
+            bricksFlag = false;
         }
 
         // Else there must be some bricks in the camreas field of view, that changed the brick situation/state

@@ -32,7 +32,8 @@ void brickPoseCallBack(const rsd_project::bricks_to_robot::ConstPtr& msg)
     double currentTime = ros::Time::now().toSec();
     double offset;
     offset = currentTime-receiveTime;
-    cout << "offset from stamped in legoDetection to be accessable in listener_nodeRSD: " << offset << endl;
+    cout << setprecision(15);
+    cout <<"offset from stamped in legoDetection to be accessable in listener_nodeRSD: " << receiveTime << endl;
 
 	
     //ros::NodeHandle n;
