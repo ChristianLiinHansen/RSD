@@ -1,0 +1,20 @@
+Software tools installation:
+
+\begin{itemize}
+\item{ROS}
+\item{RobWork}
+\item{OpenCV}
+\item{MES}
+\end{itemize}
+
+The first steps after the initial project design are to install the required software tools. The system will mainly be running in ROS but it will also use different tools integrated with it for the different tasks. The kinematics/planning/grasping tasks will be implemented in RobWork which will be communicating to ROS. The vision part will be implemented with OpenCV which will have interface to ROS. The project managing system will be implemented as a MES Server in ROS and it will be communicating with a custom protocol, which will be implemented later on, with all the other branches of the system. After the required software tools are installed the next step will be to interface the group computers to the master computer in the work cell. As a beginning a communication within ROS should be established, meaning that the group members should be able to read from and write to ROS topics on the master computer. Afterwards, all the software tools should be interfaced to ROS.
+
+\begin{itemize}
+\item{PLC conveyor control}
+\item{Template ROS nodes}
+\item{Grasping Simulation}
+\item{Color masks}
+\item{Speed calculation}
+\end{itemize}
+
+There are several goals that have to be accomplished for the midterm demonstration. As a start the PLC should be interfaced to ROS and be able to control the conveyor belt at least in one direction with fixed speed. Several “template” ROS nodes have to be created that are able to communicate with each other. Regarding the kinematics/grasping/planning task a simulation of a grasping of an object have to be implemented in RobWork. For the vision part several masks should be created that are able to distinguish bricks with different colors. Finally it is desirable speed calculation to be implemented within the vision system.

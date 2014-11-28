@@ -1,0 +1,56 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Laboratory Report LaTeX Template
+%
+% This template has been downloaded from:
+% http://www.latextemplates.com
+%
+% Original header:
+%
+% This is a LaTeX version of the sample laboratory report
+% from Virginia Tech's copyrighted 08-09 CHEM 1045/1046 lab manual.
+% Reproduction of this one appendix section for academic purposes
+% should fall under fair use.
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%----------------------------------------------------------------------------------------
+%	DOCUMENT CONFIGURATIONS
+%----------------------------------------------------------------------------------------
+
+\documentclass[a4paper,11pt,openbib]{report}
+\input{style.tex}
+%\title{LAB-1 for EMB-1} % Title
+
+%\author{author} % Author name
+
+\begin{document}
+\include{frontpage}
+
+\setlength\parindent{0pt} % Removes all indentation from paragraphs
+
+\renewcommand{\labelenumi}{\alph{enumi}.} % Make numbering in the enumerate environment by letter rather than number (e.g. section 6)
+\newpage
+\tableofcontents
+\newpage
+
+\chapter{Introduction}
+\input{sections/Introduction}
+
+\chapter{Diagrams}
+\input{sections/Diagrams}
+
+\chapter{Tasks to be done}
+\input{sections/TasksToBeDone}
+
+\chapter{Ideas for final implementation}
+\input{sections/IdeasForFinalImplemenation}
+
+%\listoftodos
+
+%----------------------------------------------------------------------------------------
+%	BIBLIOGRAPHY
+%----------------------------------------------------------------------------------------
+\pagebreak % Bibliografier
+\include{biblio/bib}
+
+\end{document}

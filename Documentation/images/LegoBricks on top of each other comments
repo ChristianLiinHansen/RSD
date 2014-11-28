@@ -1,0 +1,7 @@
+In this case, a simple approach would be to do this:
+
+- With findCountour where the area is about double as big as one size red brick, then find the bounding box of this one and crop the ROI out.
+- Inside that ROI, do a edge (canny) detection to find the lines. 
+- With this lines we can subtract them from the ROI and thereby cut the two bricks out and then find the countours x,y for the two bricks and add them to que. 
+
+
