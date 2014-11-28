@@ -398,7 +398,7 @@ class ImageConverter
         cout << "and the alignOffset is: " << alignOffset << endl;
 
         // Take care of the alignment offset, by moving the legoBrick in x space a little bit to the left.
-        x = x - alignOffset;
+        //x += alignOffset;
 
         cout << "x is this in meters, when the offset has been subtracted: " << x << endl;
 
@@ -784,9 +784,14 @@ class ImageConverter
             roll = 0.0;                   // Roll is negligible depending on the u value in the image.
             pitch = 17.03;
 
-            double alignmentOffset = 0.005;       // Approximately 1-0.5 cm offset of alignment when compairing origo to the centerpoint of the conveyor belt.
+            double alignmentOffset = 0.007;       // Approximately 1-0.5 cm offset of alignment when compairing origo to the centerpoint of the conveyor belt.
             double fx = 1194.773485/resizeScale; // Info extracted from /camera/camera_info topic with ROS. Use rostopic echo /camera/camera_info
             double fy = 1192.665666/resizeScale; // Info extracted from /camera/camera_info topic with ROS. Use rostopic echo /camera/camera_info
+
+            // Send the constant speed
+            bricks_msg.speed = 7.0901871809;    // @10Hz
+//            bricks_msg.speed = 9.9285146942;    // @12.5Hz
+//            bricks_msg.speed = 12.3395853899;   // @15Hz
 
             if (redBricks > 0)
             {
@@ -794,7 +799,7 @@ class ImageConverter
                 for (int i = 0; i < center_red.size(); i++)
                 {
                     // Set the x and y using the Pin hole model
-                    x = GetXY(center_red[i].x, initialZ, fx, img_cropped.cols);
+                    x = GetXY(center_red[i].x, initialZ, fx, img_cropped.cols)+alignmentOffset;
                     y = GetXY(center_red[i].y, initialZ, fy, img_cropped.rows);
 
                     // Set the position.
@@ -870,7 +875,7 @@ class ImageConverter
                 for (int i = 0; i < center_yellow.size(); i++)
                 {
                     // Set the x and y using the Pin hole model
-                    x = GetXY(center_yellow[i].x, initialZ, fx, img_cropped.cols);
+                    x = GetXY(center_yellow[i].x, initialZ, fx, img_cropped.cols)+alignmentOffset;
                     y = GetXY(center_yellow[i].y, initialZ, fy, img_cropped.rows);
 
                     // Set the position.
@@ -946,7 +951,7 @@ class ImageConverter
                 for (int i = 0; i < center_blue.size(); i++)
                 {
                     // Set the x and y using the Pin hole model
-                    x = GetXY(center_blue[i].x, initialZ, fx, img_cropped.cols);
+                    x = GetXY(center_blue[i].x, initialZ, fx, img_cropped.cols)+alignmentOffset;
                     y = GetXY(center_blue[i].y, initialZ, fy, img_cropped.rows);
 
                     // Set the position.
