@@ -22,7 +22,11 @@
 using namespace cv;
 using namespace std;
 
-#define xy_hys 10
+//#define xy_hys 10 // Works for 12Hz of the belt
+//Below thease individual hysterese for x and y works at 20Hz of the belt.
+#define x_hys 10
+#define y_hys 20
+
 #define maxMorph 20
 
 // Maybee thise defines need to be redefined when interfacing to the MES-server, regarding some MES-standards.
@@ -237,7 +241,10 @@ class ImageConverter
 		return morph_img;
 	}
 	
-    void findCenterAndAngle(vector<vector<Point> > &contours, vector<Point2d> &center, vector<Point2d> &showCenter, vector<double> &angle, vector<double> &showAngle, vector<double> &height, vector<double> &showHeight, bool degrees, int lowerLine, int upperLine, int minHeight, int maxHeight)
+    void findCenterAndAngle(vector<vector<Point> > &contours, vector<Point2d> &center,
+                            vector<Point2d> &showCenter, vector<double> &angle, vector<double> &showAngle,
+                            vector<double> &height, vector<double> &showHeight, bool degrees, int lowerLine, int upperLine,
+                            int minHeight, int maxHeight)
     {
         // minArea is setted for red to 1700. maxArea is not defined yet
         vector<RotatedRect> minRect( contours.size() );
@@ -245,6 +252,7 @@ class ImageConverter
         double tempAngle;
         double tempHeight;
         bool alreadySendBool;
+        vector<Point2d> showCenterXY_red;
 
         for (uint i = 0; i < contours.size(); i++) // each img
         {
@@ -283,8 +291,25 @@ class ImageConverter
                 continue;
             }
 
+            // Now get the center and angle
             tempCenter = minRect[i].center;
             tempAngle = minRect[i].angle;
+
+            // Where the center can be converted with the pin hole model
+            //cout << "The u is " << tempCenter.x << " and the v is " << tempCenter.y << endl;
+
+            // Img_cropped.cols = 740 (testet)
+            // Img_cropped.rows =
+
+            // Tested the 24/11-2014 to fit best with z = 25 cm. (The distance from the camera pendicular down to the belt.
+            //cout << "X is " << 100*GetXY(tempCenter.x, z, fx, 740) <<
+            //        "\t Y is " << 100*GetXY(tempCenter.y, z, fx, 440) << endl;
+
+
+            // Testing the GetZvalue function:
+            //cout << "The z is " << GetZValue( endl;
+
+            //cout << "x is " << GetXY(tempCenter.x,  << " and the v is " << tempCenter.y << endl;
 
             if (tempAngle == -0)
             {
@@ -309,19 +334,18 @@ class ImageConverter
             for (uint j = 0; j < alreadySend.size(); j++)
             {
                 //cout << "TempCenter is: " << tempCenter << endl;
-                if ((tempCenter.x <= alreadySend[j].x + xy_hys) && (tempCenter.x >= alreadySend[j].x - xy_hys) && (tempCenter.y <= alreadySend[j].y + xy_hys) && (tempCenter.y >= alreadySend[j].y - xy_hys) )
+                if ((tempCenter.x <= alreadySend[j].x + x_hys) && (tempCenter.x >= alreadySend[j].x - x_hys) && (tempCenter.y <= alreadySend[j].y + y_hys) && (tempCenter.y >= alreadySend[j].y - y_hys) )
                 {
                     //cout << "TempCenter is the same" << endl;
                     alreadySend[j].x = tempCenter.x;
                     alreadySend[j].y = tempCenter.y;
 
-                    cout << "alreadySend contains: " << alreadySend << "with size: " << alreadySend.size() << endl;
+                    //cout << "alreadySend contains: " << alreadySend << "with size: " << alreadySend.size() << endl;
                     if ((tempCenter.y < lowerLine) or (tempCenter.y > upperLine))
                     {
                         cout << "Now we are above or below the green lines with size: " << alreadySend.size() << endl;
                         alreadySend.erase(alreadySend.begin() + j);
-                        cout << "alreadySend is less now and contains: " << alreadySend << endl;
-
+                        //cout << "alreadySend is less now and contains: " << alreadySend << endl;
                     }
 
                     alreadySendBool = true;
@@ -364,13 +388,53 @@ class ImageConverter
 		return ss.str();
 	}
 	
-	double GetZValue(int u, int v)
+    double GetZValue(double x, double initialZ, double alignOffset)
 	{
-		double z = 0;
-		
-		return z;
+        // Declare z and the offset
+        double offsetZ = 0;
+        double finalZ = 0;
+
+        cout << "x is this in meters, when entering the function: " << x << endl;
+        cout << "and the alignOffset is: " << alignOffset << endl;
+
+        // Take care of the alignment offset, by moving the legoBrick in x space a little bit to the left.
+        x = x - alignOffset;
+
+        cout << "x is this in meters, when the offset has been subtracted: " << x << endl;
+
+        // If x is positive, then we are in the origo + right side of the image.
+        if (x>=0)
+        {
+            // Then we apply the formula, which was derived out from the testing data
+            offsetZ = 0.2393333333*x - 0.00182222222222;
+        }
+        // Means that x is negative, then we are on the left side of the image
+        else
+        {
+            //offsetZ = -0.238*x + 0.04746666667;
+            offsetZ = -0.238*x + 0.00182222222222;
+        }
+
+        // The real z value is then what we used to calculate x and y, plus this little offset
+        // The output z value is in meters still.
+
+        if(offsetZ < 0)
+        {
+            finalZ = offsetZ + initialZ;
+        }
+        else if (offsetZ == 0)
+        {
+            finalZ = initialZ;
+        }
+        else
+        {
+            finalZ = initialZ - offsetZ;
+        }
+        cout << "z is finally: " << finalZ << endl;
+        return finalZ;
 	}
 
+    // The pinhole model
     double GetXY(int uv, double z, double fxfy, int imageColRow)
     {
         // Initialize variables. This could be either x or y output. Depends on the input arguments.
@@ -384,52 +448,6 @@ class ImageConverter
         // And return the xy
         return xy;
     }
-
-//    double u = center_yellow[0].x;
-//    double v = center_yellow[0].y;
-//    double roll, pitch, yaw;
-//    double fx = 1194.773485;
-//    double fy = 1192.665666;
-
-//    // Set roll, pitch and yaw
-//    // roll - orientation around x axis
-//    // The x,y,z coordinate is bounded with z pointing upward from the conveyorbelt
-//    // and x is in the belt running forward direction.
-//    roll = 0.0;
-
-//    // Pitch is the inclination of the conveyor belt. Units is converted to radians
-//    pitch = 17.03;
-//    pitch = pitch*(M_PI/180);
-
-//    // The yaw is the orientation around z-axis
-//    yaw = angle_yellow[0];
-
-//    // Set the orientation
-
-
-//    q.setRPY(roll, pitch, yaw);
-
-//    // Apply the pin hole model
-//    double x;
-//    double y;
-//    double z = 0.030; // 30 cm meassured from camera to middle of conveyor belt
-
-//    x = (u - img_cropped.cols/2)*z/fx;
-//    y = (v - img_cropped.rows/2)*z/fy;
-//    //cout << "x is: " << x << " and y is: " << y << endl;
-
-//    pose.orientation.x = q.getX();
-//    pose.orientation.y = q.getY();
-//    pose.orientation.z = q.getZ();
-//    pose.orientation.w = q.getW();
-
-//    pose.position.x = x;
-//    pose.position.y = y;
-//    pose.position.z = z;
-
-//    p_pub.publish(pose);
-
-
 
 	///////////////////////////////////////////////////////////
 	// The image call back function
@@ -480,7 +498,10 @@ class ImageConverter
 		
 		inputImage(Rect(roi_x,roi_y,roi_width,roi_height)).copyTo(img_cropped);
         //imshow("Cropped image", img_cropped);
-		
+
+        //cout << "Size of image is: " << img_cropped.cols << " x " << img_cropped.rows << endl;
+        // cols = 740, rows = 440.
+
 		//Convert the image into hsv
 		Mat hsvImage;
 		cvtColor(img_cropped,hsvImage,CV_BGR2HSV);
@@ -726,8 +747,6 @@ class ImageConverter
             blueBricks++;	
 		}
 		
-
-
         // Drawings stuff on the output RGB image
 		line(img_cropped, leftLowerPoint, rightLowerPoint, Scalar(0, 255, 0), 2, 8, 0);
 		line(img_cropped, leftUpperPoint, rightUpperPoint, Scalar(0, 255, 0), 2, 8, 0);
@@ -735,6 +754,7 @@ class ImageConverter
         center.x = img_cropped.cols/2;
         center.y = img_cropped.rows/2;
         circle(img_cropped, center, 5, Scalar(255, 255, 255), -1, 8, 0);
+        circle(img_cropped, center, 8, Scalar(0, 0, 0), 0, 8, 0);
 
 		imshow("Cropped image", img_cropped);
 		
@@ -758,24 +778,13 @@ class ImageConverter
         // Else there must be some bricks in the camreas field of view, that changed the brick situation/state
         else
         {
-            /*
-             Perhaps do a do-while loop in here
-             Like do <Find the transformation matrix for the u,v, and angle and publish the transformatin on a topic.
-             Then update the brick state, so if there was 1 red LEGO brick in the image,
-             --> previousRedBricks = currentRedBricks
-             --> and then do this while (previousRedBricks =!currentRedBricks )
-             */
-
-            vector<double> elements; //
-            vector<vector<double> > transformation_vector; //
-            vector<geometry_msgs::Pose> poses;
-
-
             // Draw the centerpoint in the image
-            double x,y,z,roll,pitch,yaw;
-            z = 0.30;                     // Rough estimate of the depth, approx 30 cm. Should be remeassured in final implementation.
-            roll = 0.1;                     // We need make a funktion that output the roll depending on the u value in the image.
+            double x,y,initialZ ,roll,pitch,yaw;
+            initialZ = 0.25;                     // Tested to fid best for x,y 24/11-2014.This z value for getting the x and y
+            roll = 0.0;                   // Roll is negligible depending on the u value in the image.
+            pitch = 17.03;
 
+            double alignmentOffset = 0.005;       // Approximately 1-0.5 cm offset of alignment when compairing origo to the centerpoint of the conveyor belt.
             double fx = 1194.773485/resizeScale; // Info extracted from /camera/camera_info topic with ROS. Use rostopic echo /camera/camera_info
             double fy = 1192.665666/resizeScale; // Info extracted from /camera/camera_info topic with ROS. Use rostopic echo /camera/camera_info
 
@@ -784,20 +793,56 @@ class ImageConverter
                 //cout << "There is a red brick inside the field" << endl;
                 for (int i = 0; i < center_red.size(); i++)
                 {
-                    x = GetXY(center_red[i].x, z, fx, img_cropped.cols);
-                    y = GetXY(center_red[i].y, z, fy, img_cropped.rows);
+                    // Set the x and y using the Pin hole model
+                    x = GetXY(center_red[i].x, initialZ, fx, img_cropped.cols);
+                    y = GetXY(center_red[i].y, initialZ, fy, img_cropped.rows);
 
-                    // Multiply with 100 to get to cm. The white dot in the image is origo, (0,0)
+                    // Set the position.
+                    // Multiply with 100 to go from meter to get to cm. The white dot in the image is origo, (0,0)
                     pose.position.x = 100*x;
                     pose.position.y = 100*y;
-                    pose.position.z = 100*z;
-                    pose.orientation.x = roll;
-                    pose.orientation.y = 17.03;   // Pitch is the inclination of the conveyor belt. This is static. Unit is in degree.
-                    pose.orientation.z = angle_red[i]; // Yaw is the rotation of the bricks when lying on the conveyorbelt.
-      //              pose.orientation.w = q.getW();   // What
 
-                    // Dont know why we created a vector of poses, but we did somehow...
-                    //poses.push_back(pose);
+                    /* Note about the z-value
+                      When looking at the data, which was remeassured, vally of the conveyorbelt is between
+                      200 and 225. So middle is around 215 cm, measured from the metal side of the conveyour belt
+                      that is closest to the Master computer.
+                      Looking at image where a meassurement tape was set in 215 cm, the measurement tape
+                      was a slithly off compaired to the (u,v)= 0,0 origo. The measurement tape was to the right side of the origo.
+                      Result of this is imagefile z215.png.
+                      Is on dropbox at /home/christian/Dropbox/E14/RSD/images/z215.png
+                      This offset is approiximate 1 cmm, i.e. measurement tape lies 1 cm too much to the right, compaired to the origo.
+                      So we have to subtract the offset, when compairing to the measurement data.
+                      The measuring data is available at dropbox, at
+                      /home/christian/Dropbox/E14/RSD/testZvalue.ods
+                    */
+
+                    // Multiply with 100 to get from meters to cm.
+                    pose.position.z = 100*GetZValue(x, initialZ, alignmentOffset);
+                    cout << "The real z-position is: " << pose.position.z << endl;
+                    cout << "The x,y,z is ("
+                         << pose.position.x
+                         << " , "
+                         << pose.position.y
+                         << " , "
+                         << pose.position.z
+                         << ") "
+                         << endl;
+
+                    // Set the yaw compaired to the orientation founded...
+                    yaw = angle_red[i];
+
+                    // Set the orientation
+                    q.setRPY(roll, pitch, yaw);
+                    pose.orientation.x = q.getX();
+                    pose.orientation.y = q.getY();
+                    pose.orientation.z = q.getZ();
+                    pose.orientation.w = q.getW();
+
+                    // Code where we just wrote directly the roll, pitch and yaw into the orentation without w.
+//                    pose.orientation.x = roll;
+//                    pose.orientation.y = pitch;   // Pitch is the inclination of the conveyor belt. This is static. Unit is in degree.
+//                    pose.orientation.z = angle_red[i]; // Yaw is the rotation of the bricks when lying on the conveyorbelt.
+
 
                     // Set the pose into the bricks_msg
                     bricks_msg.pose = pose;
@@ -824,20 +869,55 @@ class ImageConverter
                 //cout << "There is a yellow brick inside the field" << endl;
                 for (int i = 0; i < center_yellow.size(); i++)
                 {
-                    x = GetXY(center_yellow[i].x, z, fx, img_cropped.cols);
-                    y = GetXY(center_yellow[i].y, z, fy, img_cropped.rows);
+                    // Set the x and y using the Pin hole model
+                    x = GetXY(center_yellow[i].x, initialZ, fx, img_cropped.cols);
+                    y = GetXY(center_yellow[i].y, initialZ, fy, img_cropped.rows);
 
-                    // Multiply with 100 to get to cm. The white dot in the image is origo, (0,0)
+                    // Set the position.
+                    // Multiply with 100 to go from meter to get to cm. The white dot in the image is origo, (0,0)
                     pose.position.x = 100*x;
                     pose.position.y = 100*y;
-                    pose.position.z = 100*z;
-                    pose.orientation.x = roll;
-                    pose.orientation.y = 17.03;   // Pitch is the inclination of the conveyor belt. This is static. Unit is in degree.
-                    pose.orientation.z = angle_yellow[i]; // Yaw is the rotation of the bricks when lying on the conveyorbelt.
-      //              pose.orientation.w = q.getW();   // What
 
-                    // Dont know why we created a vector of poses, but we did somehow...
-                    //poses.push_back(pose);
+                    /* Note about the z-value
+                      When looking at the data, which was remeassured, vally of the conveyorbelt is between
+                      200 and 225. So middle is around 215 cm, measured from the metal side of the conveyour belt
+                      that is closest to the Master computer.
+                      Looking at image where a meassurement tape was set in 215 cm, the measurement tape
+                      was a slithly off compaired to the (u,v)= 0,0 origo. The measurement tape was to the right side of the origo.
+                      Result of this is imagefile z215.png.
+                      Is on dropbox at /home/christian/Dropbox/E14/RSD/images/z215.png
+                      This offset is approiximate 1 cmm, i.e. measurement tape lies 1 cm too much to the right, compaired to the origo.
+                      So we have to subtract the offset, when compairing to the measurement data.
+                      The measuring data is available at dropbox, at
+                      /home/christian/Dropbox/E14/RSD/testZvalue.ods
+                    */
+
+                    // Multiply with 100 to get from meters to cm.
+                    pose.position.z = 100*GetZValue(x, initialZ, alignmentOffset);
+                    cout << "The real z-position is: " << pose.position.z << endl;
+                    cout << "The x,y,z is ("
+                         << pose.position.x
+                         << " , "
+                         << pose.position.y
+                         << " , "
+                         << pose.position.z
+                         << ") "
+                         << endl;
+
+                    // Set the yaw compaired to the orientation founded...
+                    yaw = angle_yellow[i];
+
+                    // Set the orientation
+                    q.setRPY(roll, pitch, yaw);
+                    pose.orientation.x = q.getX();
+                    pose.orientation.y = q.getY();
+                    pose.orientation.z = q.getZ();
+                    pose.orientation.w = q.getW();
+
+                    // Code where we just wrote directly the roll, pitch and yaw into the orentation without w.
+//                    pose.orientation.x = roll;
+//                    pose.orientation.y = pitch;   // Pitch is the inclination of the conveyor belt. This is static. Unit is in degree.
+//                    pose.orientation.z = angle_yellow[i]; // Yaw is the rotation of the bricks when lying on the conveyorbelt.
 
                     // Set the pose into the bricks_msg
                     bricks_msg.pose = pose;
@@ -865,20 +945,55 @@ class ImageConverter
                 //cout << "There is a blue brick inside the field" << endl;
                 for (int i = 0; i < center_blue.size(); i++)
                 {
-                    x = GetXY(center_blue[i].x, z, fx, img_cropped.cols);
-                    y = GetXY(center_blue[i].y, z, fy, img_cropped.rows);
+                    // Set the x and y using the Pin hole model
+                    x = GetXY(center_blue[i].x, initialZ, fx, img_cropped.cols);
+                    y = GetXY(center_blue[i].y, initialZ, fy, img_cropped.rows);
 
-                    // Multiply with 100 to get to cm. The white dot in the image is origo, (0,0)
+                    // Set the position.
+                    // Multiply with 100 to go from meter to get to cm. The white dot in the image is origo, (0,0)
                     pose.position.x = 100*x;
                     pose.position.y = 100*y;
-                    pose.position.z = 100*z;
-                    pose.orientation.x = roll;
-                    pose.orientation.y = 17.03;   // Pitch is the inclination of the conveyor belt. This is static. Unit is in degree.
-                    pose.orientation.z = angle_blue[i]; // Yaw is the rotation of the bricks when lying on the conveyorbelt.
-      //            pose.orientation.w = q.getW();   // What
 
-                    // Dont know why we created a vector of poses, but we did somehow...
-                    //poses.push_back(pose);
+                    /* Note about the z-value
+                      When looking at the data, which was remeassured, vally of the conveyorbelt is between
+                      200 and 225. So middle is around 215 cm, measured from the metal side of the conveyour belt
+                      that is closest to the Master computer.
+                      Looking at image where a meassurement tape was set in 215 cm, the measurement tape
+                      was a slithly off compaired to the (u,v)= 0,0 origo. The measurement tape was to the right side of the origo.
+                      Result of this is imagefile z215.png.
+                      Is on dropbox at /home/christian/Dropbox/E14/RSD/images/z215.png
+                      This offset is approiximate 1 cmm, i.e. measurement tape lies 1 cm too much to the right, compaired to the origo.
+                      So we have to subtract the offset, when compairing to the measurement data.
+                      The measuring data is available at dropbox, at
+                      /home/christian/Dropbox/E14/RSD/testZvalue.ods
+                    */
+
+                    // Multiply with 100 to get from meters to cm.
+                    pose.position.z = 100*GetZValue(x, initialZ, alignmentOffset);
+                    cout << "The real z-position is: " << pose.position.z << endl;
+                    cout << "The x,y,z is ("
+                         << pose.position.x
+                         << " , "
+                         << pose.position.y
+                         << " , "
+                         << pose.position.z
+                         << ") "
+                         << endl;
+
+                    // Set the yaw compaired to the orientation founded...
+                    yaw = angle_blue[i];
+
+                    // Set the orientation
+                    q.setRPY(roll, pitch, yaw);
+                    pose.orientation.x = q.getX();
+                    pose.orientation.y = q.getY();
+                    pose.orientation.z = q.getZ();
+                    pose.orientation.w = q.getW();
+
+                    // Code where we just wrote directly the roll, pitch and yaw into the orentation without w.
+//                  pose.orientation.x = roll;
+//                  pose.orientation.y = pitch;   // Pitch is the inclination of the conveyor belt. This is static. Unit is in degree.
+////                pose.orientation.z = angle_blue[i]; // Yaw is the rotation of the bricks when lying on the conveyorbelt.
 
                     // Set the pose into the bricks_msg
                     bricks_msg.pose = pose;
@@ -902,61 +1017,6 @@ class ImageConverter
                 //cout << "vector of poses size is: " << poses.size() << endl;
             }
         }
-
-
-
-		// NOTE: Remember that if there is no color in the frame and we do 
-		// something like: 
-		
-		/*
-		//drawContours(fun_test_img, contours, -1, CV_RGB(255, 255, 255), 2, 8);
-		
-		// Now we just find one of the red bricks.
-		// center_red[i] = [[u0,v0], [u1,v1], ... , [un,vn]] 
-		double u = center_yellow[0].x;
-		double v = center_yellow[0].y;
-		double roll, pitch, yaw;
-
-		
-		// Set roll, pitch and yaw
-		// roll - orientation around x axis
-		// The x,y,z coordinate is bounded with z pointing upward from the conveyorbelt
-		// and x is in the belt running forward direction.
-		roll = 0.0;
-		
-		// Pitch is the inclination of the conveyor belt. Units is converted to radians
-		pitch = 17.03;
-		pitch = pitch*(M_PI/180);
-		
-		// The yaw is the orientation around z-axis
-		yaw = angle_yellow[0];
-		
-		// Set the orientation
-		
-
-		q.setRPY(roll, pitch, yaw);
-		
-		// Apply the pin hole model
-		double x;
-		double y;
-		double z = 0.030; // 30 cm meassured from camera to middle of conveyor belt
-		
-		x = (u - img_cropped.cols/2)*z/fx;
-		y = (v - img_cropped.rows/2)*z/fy;
-		//cout << "x is: " << x << " and y is: " << y << endl;
-
-		pose.orientation.x = q.getX();
-		pose.orientation.y = q.getY();
-		pose.orientation.z = q.getZ();
-		pose.orientation.w = q.getW();
-			
-		pose.position.x = x;
-		pose.position.y = y;
-		pose.position.z = z;
-				
-		p_pub.publish(pose);
-		*/
-
         // Add this little wait for 1ms to be able to let OpenCV use the imshow function. IF this is avoided the imshow dont show
         // any images...
         //cout << "----------------------------------------------------------" << endl;
